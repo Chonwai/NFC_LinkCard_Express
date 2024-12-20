@@ -1,0 +1,11 @@
+# 環境變數
+.env
+.env.local
+.env.development
+.env.production
+
+# node_modules
+node_modules
+
+# 其他
+.DS_Store
