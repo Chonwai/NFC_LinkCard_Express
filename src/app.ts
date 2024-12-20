@@ -8,10 +8,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 使用統一的路由前綴
 app.use('/api', routes);
 
-// 資料庫連接
 AppDataSource.initialize()
     .then(() => {
         console.log('Database connected');
