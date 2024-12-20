@@ -11,3 +11,7 @@ node_modules
 .DS_Store
 .cursorignore
 *.log
+
+# build
+build
+dist
