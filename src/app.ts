@@ -1,21 +1,25 @@
 import express from 'express';
 import cors from 'cors';
-import { createConnection } from 'typeorm';
-import linkRoutes from './routes/links';
+import { AppDataSource } from './config/data-source';
+import routes from './routes';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// 路由
-app.use('/api/links', linkRoutes);
+// 使用統一的路由前綴
+app.use('/api', routes);
 
 // 資料庫連接
-createConnection()
+AppDataSource.initialize()
     .then(() => {
         console.log('Database connected');
     })
     .catch((error) => console.log(error));
+
+app.listen(3010, () => {
+    console.log('Server is running on port 3010');
+});
 
 export default app;

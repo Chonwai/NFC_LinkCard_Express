@@ -10,6 +10,7 @@
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
+    "strictPropertyInitialization": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

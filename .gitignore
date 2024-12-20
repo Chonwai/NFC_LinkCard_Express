@@ -9,3 +9,5 @@ node_modules
 
 # 其他
 .DS_Store
+.cursorignore
+*.log

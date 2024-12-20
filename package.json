@@ -1,7 +1,6 @@
 {
   "name": "NFC_LinkCard_Express",
   "version": "1.0.0",
-  "type": "module",
   "main": "index.ts",
   "repository": "https://github.com/Chonwai/NFC_LinkCard_Express.git",
   "author": "Chonwai Un, Edison",
@@ -12,9 +11,11 @@
     "express": "^4.21.2",
     "pg": "^8.13.1",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.20"
+    "typeorm": "^0.3.20",
+    "typeorm-naming-strategies": "^4.1.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.18.1",
@@ -27,16 +28,17 @@
     "nodemon": "^3.1.9",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
+    "typeorm-ts-node-commonjs": "^0.3.20",
     "typescript": "^5.7.2"
   },
   "scripts": {
-    "dev": "nodemon src/app.ts",
+    "dev": "nodemon --exec ts-node src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "npm run typeorm migration:generate",
-    "migration:run": "npm run typeorm migration:run",
-    "migration:revert": "npm run typeorm migration:revert",
+    "migration:create": "typeorm-ts-node-commonjs migration:create",
+    "migration:generate": "ts-node --transpile-only ./node_modules/typeorm/cli.js migration:generate -d typeorm.config.ts",
+    "migration:run": "ts-node --transpile-only ./node_modules/typeorm/cli.js migration:run -d typeorm.config.ts",
+    "migration:revert": "ts-node --transpile-only ./node_modules/typeorm/cli.js migration:revert -d typeorm.config.ts",
     "lint": "eslint \"**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "husky install"

@@ -1,10 +1,10 @@
-import { DataSourceOptions } from 'typeorm';
-import dotenv from 'dotenv';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
-dotenv.config();
+const { DataSource } = require('typeorm');
+require('dotenv').config();
 
-export const databaseConfig: DataSourceOptions = {
+
+const AppDataSource = new DataSource({
     type: 'postgres',
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
@@ -16,4 +16,6 @@ export const databaseConfig: DataSourceOptions = {
     synchronize: false,
     logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
     namingStrategy: new SnakeNamingStrategy(),
-};
+});
+
+module.exports = AppDataSource;

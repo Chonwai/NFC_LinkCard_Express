@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { LinkService } from '../services/LinkService';
+import { ApiResponse } from '../utils/apiResponse';
 
 export class LinkController {
     private linkService: LinkService;
@@ -8,21 +9,21 @@ export class LinkController {
         this.linkService = new LinkService();
     }
 
-    async create(req: Request, res: Response) {
+    create = async (req: Request, res: Response) => {
         try {
             const link = await this.linkService.create(req.body);
-            return res.status(201).json(link);
-        } catch (error) {
-            return res.status(400).json({ error: error.message });
+            return ApiResponse.success(res, { link }, 201);
+        } catch (error: any) {
+            return ApiResponse.error(res, '連結創建失敗', 'LINK_CREATE_ERROR', error.message, 400);
         }
-    }
+    };
 
-    async getAll(req: Request, res: Response) {
+    getAll = async (req: Request, res: Response) => {
         try {
             const links = await this.linkService.findAll();
-            return res.json(links);
-        } catch (error) {
-            return res.status(500).json({ error: error.message });
+            return ApiResponse.success(res, { links });
+        } catch (error: any) {
+            return ApiResponse.error(res, '獲取連結失敗', 'LINK_FETCH_ERROR', error.message, 500);
         }
-    }
+    };
 }
