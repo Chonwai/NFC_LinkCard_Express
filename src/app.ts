@@ -18,8 +18,8 @@ AppDataSource.initialize()
     })
     .catch((error) => console.log(error));
 
-app.listen(3010, () => {
-    console.log('Server is running on port 3010');
+app.listen(3020, () => {
+    console.log('Server is running on port 3020');
 });
 
 export default app;
