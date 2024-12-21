@@ -1,6 +1,7 @@
 import { IsEmail, IsString, MinLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
 
-export class RegisterDto {
+export class RegisterDto implements Prisma.UserCreateInput {
     @IsString()
     @MinLength(3)
     username: string;
@@ -11,6 +12,10 @@ export class RegisterDto {
     @IsString()
     @MinLength(8)
     password: string;
+
+    display_name?: string;
+    avatar?: string;
+    bio?: string;
 }
 
 export class LoginDto {

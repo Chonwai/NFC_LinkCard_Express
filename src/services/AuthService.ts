@@ -1,31 +1,27 @@
-import { User } from '../models/User';
-import { AppDataSource } from '../config/data-source';
+import prisma from '../lib/prisma';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
-import * as jwt from 'jsonwebtoken';
-import { jwtConfig } from '../config/jwt.config';
 import { HttpException } from '../utils/HttpException';
-import { classToPlain } from 'class-transformer';
 
 export class AuthService {
-    private userRepository = AppDataSource.getRepository(User);
-
-    async register(registerDto: RegisterDto): Promise<{ user: Partial<User> }> {
-        const existingUser = await this.userRepository.findOne({
-            where: [{ email: registerDto.email }, { username: registerDto.username }],
+    async register(registerDto: RegisterDto) {
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [{ email: registerDto.email }, { username: registerDto.username }],
+            },
         });
 
         if (existingUser) {
             throw new HttpException(400, '用戶已存在');
         }
 
-        const user = this.userRepository.create(registerDto);
-        await this.userRepository.save(user);
+        const user = await prisma.user.createWithHashedPassword(registerDto);
+        const token = prisma.user.generateToken(user);
 
-        return { user: classToPlain(user) as Partial<User> };
+        return { user, token };
     }
 
-    async login(loginDto: LoginDto): Promise<{ user: Partial<User> }> {
-        const user = await this.userRepository.findOne({
+    async login(loginDto: LoginDto) {
+        const user = await prisma.user.findUnique({
             where: { email: loginDto.email },
         });
 
@@ -33,17 +29,18 @@ export class AuthService {
             throw new HttpException(401, '用戶不存在');
         }
 
-        const isValidPassword = await user.validatePassword(loginDto.password);
+        const isValidPassword = await prisma.user.validatePassword(
+            loginDto.password,
+            user.password,
+        );
+
         if (!isValidPassword) {
             throw new HttpException(401, '密碼錯誤');
         }
 
-        return { user: classToPlain(user) as Partial<User> };
-    }
+        const { password, ...userWithoutPassword } = user;
+        const token = prisma.user.generateToken(user);
 
-    public generateToken(user: User): string {
-        return jwt.sign({ id: user.id, email: user.email }, jwtConfig.secret, {
-            expiresIn: jwtConfig.expiresIn,
-        });
+        return { user: userWithoutPassword, token };
     }
 }

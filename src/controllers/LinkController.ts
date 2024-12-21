@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { LinkService } from '../services/LinkService';
 import { ApiResponse } from '../utils/apiResponse';
+import { ApiError } from '../types/error.types';
 
 export class LinkController {
     private linkService: LinkService;
@@ -13,8 +14,15 @@ export class LinkController {
         try {
             const link = await this.linkService.create(req.body);
             return ApiResponse.success(res, { link }, 201);
-        } catch (error: any) {
-            return ApiResponse.error(res, '連結創建失敗', 'LINK_CREATE_ERROR', error.message, 400);
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '連結創建失敗',
+                'LINK_CREATE_ERROR',
+                apiError.message,
+                400,
+            );
         }
     };
 

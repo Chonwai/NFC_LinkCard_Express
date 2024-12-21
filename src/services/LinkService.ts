@@ -1,15 +1,24 @@
-import { AppDataSource } from '../config/data-source';
-import { Link } from '../models/Link';
+import { Prisma } from '@prisma/client';
+import prisma from '../lib/prisma';
 
 export class LinkService {
-    private linkRepository = AppDataSource.getRepository(Link);
-
-    async create(data: Partial<Link>) {
-        const link = this.linkRepository.create(data);
-        return await this.linkRepository.save(link);
+    async create(data: Prisma.LinkCreateInput) {
+        const link = await prisma.link.create({
+            data,
+            include: {
+                user: true,
+                profile: true,
+            },
+        });
+        return link;
     }
 
     async findAll() {
-        return await this.linkRepository.find();
+        return await prisma.link.findMany({
+            include: {
+                user: true,
+                profile: true,
+            },
+        });
     }
 }

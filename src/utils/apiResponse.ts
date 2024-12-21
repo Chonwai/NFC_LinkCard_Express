@@ -1,13 +1,17 @@
 import { Response } from 'express';
 
+export interface ApiResponseHeaders {
+    [key: string]: string;
+}
+
 export class ApiResponse {
     static success(
         res: Response,
-        data: any = {},
-        status: number = 200,
-        headers: Record<string, string> = {},
+        data: Record<string, unknown>,
+        status = 200,
+        headers?: ApiResponseHeaders,
     ) {
-        Object.entries(headers).forEach(([key, value]) => {
+        Object.entries(headers || {}).forEach(([key, value]) => {
             res.header(key, value);
         });
 
@@ -17,18 +21,12 @@ export class ApiResponse {
         });
     }
 
-    static error(
-        res: Response,
-        message: string,
-        errorCode: string,
-        details: any = null,
-        status: number = 200,
-    ) {
+    static error(res: Response, message: string, code: string, details: unknown, status = 400) {
         const response: any = {
             success: false,
             error: {
                 message,
-                code: errorCode,
+                code,
             },
         };
 

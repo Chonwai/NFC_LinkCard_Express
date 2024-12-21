@@ -4,7 +4,7 @@ import { ApiResponse } from '../utils/apiResponse';
 import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
-import { User } from '../models/User';
+import { ApiError } from '../types/error.types';
 
 export class AuthController {
     private authService: AuthService;
@@ -22,17 +22,17 @@ export class AuthController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const { user } = await this.authService.register(registerDto);
-            const token = this.authService.generateToken(user as User);
+            const { user, token } = await this.authService.register(registerDto);
 
             return ApiResponse.success(res, { user }, 201, { Authorization: `Bearer ${token}` });
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
             return ApiResponse.error(
                 res,
-                error.message,
+                apiError.message,
                 'REGISTER_ERROR',
                 null,
-                error.status || 500,
+                apiError.status || 500,
             );
         }
     };
@@ -46,12 +46,18 @@ export class AuthController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const { user } = await this.authService.login(loginDto);
-            const token = this.authService.generateToken(user as User);
+            const { user, token } = await this.authService.login(loginDto);
 
             return ApiResponse.success(res, { user }, 200, { Authorization: `Bearer ${token}` });
-        } catch (error: any) {
-            return ApiResponse.error(res, error.message, 'LOGIN_ERROR', null, error.status || 500);
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                apiError.message,
+                'LOGIN_ERROR',
+                null,
+                apiError.status || 500,
+            );
         }
     };
 }
