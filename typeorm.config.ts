@@ -11,8 +11,8 @@ const prodConfig = {
     ssl: {
         rejectUnauthorized: false,
     },
-    entities: ['dist/models/**/*.ts'],
-    migrations: ['dist/migrations/**/*.ts'],
+    entities: ['src/models/**/*.ts'],
+    migrations: ['src/migrations/**/*.ts'],
     synchronize: false,
     logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
     namingStrategy: new SnakeNamingStrategy(),
