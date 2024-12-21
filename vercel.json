@@ -5,7 +5,7 @@
       "src": "src/app.ts",
       "use": "@vercel/node",
       "config": {
-        "installCommand": "npm install && npx prisma generate"
+        "buildCommand": "npm run vercel-build"
       }
     }
   ],
