@@ -3,8 +3,22 @@ import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 const { DataSource } = require('typeorm');
 require('dotenv').config();
 
+const isProd = process.env.NODE_ENV === 'production';
 
-const AppDataSource = new DataSource({
+const prodConfig = {
+    type: 'postgres',
+    url: process.env.POSTGRES_PRISMA_URL,
+    ssl: {
+        rejectUnauthorized: false
+    },
+    entities: ['src/models/*.ts'],
+    migrations: ['src/migrations/**/*.ts'],
+    synchronize: false,
+    logging: ['error'],
+    namingStrategy: new SnakeNamingStrategy(),
+};
+
+const devConfig = {
     type: 'postgres',
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432'),
@@ -16,6 +30,8 @@ const AppDataSource = new DataSource({
     synchronize: false,
     logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
     namingStrategy: new SnakeNamingStrategy(),
-});
+};
+
+const AppDataSource = new DataSource(isProd ? prodConfig : devConfig);
 
 module.exports = AppDataSource;
