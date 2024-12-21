@@ -39,7 +39,7 @@
   },
   "scripts": {
     "dev": "nodemon --exec ts-node src/app.ts",
-    "build": "tsc",
+    "build": "tsc --project tsconfig.json",
     "start": "node dist/app.js",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
     "migration:generate": "ts-node --transpile-only ./node_modules/typeorm/cli.js migration:generate -d typeorm.config.ts",

@@ -12,8 +12,8 @@ const prodConfig: DataSourceOptions = {
     ssl: {
         rejectUnauthorized: false,
     },
-    entities: ['src/models/**/*.ts'],
-    migrations: ['src/migrations/**/*.ts'],
+    entities: ['dist/models/**/*.js'],
+    migrations: ['dist/migrations/**/*.js'],
     synchronize: false,
     logging: ['error'],
     namingStrategy: new SnakeNamingStrategy(),
