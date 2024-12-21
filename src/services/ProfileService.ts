@@ -81,7 +81,7 @@ export class ProfileService {
             where: { id },
             data: {
                 ...data,
-                slug: data.name ? await generateSlug(data.name) : undefined,
+                slug: profile.slug,
             },
         });
     }
