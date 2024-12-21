@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/AuthService';
-import { ApiResponse } from '../utils/ApiResponse';
+import { ApiResponse } from '../utils/apiResponse';
 import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
