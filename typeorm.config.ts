@@ -11,7 +11,7 @@ const prodConfig = {
     ssl: {
         rejectUnauthorized: false
     },
-    entities: ['src/models/*.ts'],
+    entities: ['src/models/**/*.ts'],
     migrations: ['src/migrations/**/*.ts'],
     synchronize: false,
     logging: ['error'],
@@ -25,7 +25,7 @@ const devConfig = {
     username: process.env.DB_USERNAME,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    entities: ['src/models/*.ts'],
+    entities: ['src/models/**/*.ts'],
     migrations: ['src/migrations/**/*.ts'],
     synchronize: false,
     logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
