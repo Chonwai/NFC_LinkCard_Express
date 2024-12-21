@@ -1,90 +1,104 @@
-// import { Prisma } from '@prisma/client';
-// import prisma from '../lib/prisma';
-// import { HttpException } from '../utils/HttpException';
-// import { generateSlug } from '../utils/slugGenerator';
+import prisma from '../lib/prisma';
+import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
+import { HttpException } from '../utils/HttpException';
+import { generateSlug } from '../utils/slugGenerator';
 
-// export class ProfileService {
-//     async create(data: Prisma.ProfileCreateInput, userId: string) {
-//         const existingDefaultProfile = await prisma.profile.findFirst({
-//             where: {
-//                 user_id: userId,
-//                 is_default: true,
-//             },
-//         });
+export class ProfileService {
+    async create(data: CreateProfileDto, userId: string) {
+        const slug = await generateSlug(data.name);
 
-//         const slug = await generateSlug(data.name);
+        return await prisma.profile.create({
+            data: {
+                ...data,
+                slug,
+                user_id: userId,
+                is_default: false,
+            },
+            include: {
+                user: {
+                    select: {
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                    },
+                },
+            },
+        });
+    }
 
-//         return await prisma.profile.create({
-//             data: {
-//                 ...data,
-//                 slug,
-//                 user_id: userId,
-//                 is_default: !existingDefaultProfile,
-//             },
-//         });
-//     }
+    async findByUserId(userId: string) {
+        return await prisma.profile.findMany({
+            where: { user_id: userId },
+            include: {
+                links: {
+                    orderBy: { display_order: 'asc' },
+                },
+            },
+            orderBy: { created_at: 'desc' },
+        });
+    }
 
-//     async findByUserId(userId: string) {
-//         return await prisma.profile.findMany({
-//             where: { user_id: userId },
-//             include: {
-//                 links: {
-//                     orderBy: { display_order: 'asc' },
-//                 },
-//             },
-//         });
-//     }
+    async findBySlug(slug: string) {
+        const profile = await prisma.profile.findUnique({
+            where: { slug },
+            include: {
+                links: {
+                    where: { is_active: true },
+                    orderBy: { display_order: 'asc' },
+                },
+                user: {
+                    select: {
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                        bio: true,
+                    },
+                },
+            },
+        });
 
-//     async findBySlug(slug: string) {
-//         const profile = await prisma.profile.findUnique({
-//             where: { slug },
-//             include: {
-//                 links: {
-//                     where: { is_active: true },
-//                     orderBy: { display_order: 'asc' },
-//                 },
-//                 user: {
-//                     select: {
-//                         username: true,
-//                         display_name: true,
-//                         avatar: true,
-//                         bio: true,
-//                     },
-//                 },
-//             },
-//         });
+        if (!profile) {
+            throw new HttpException(404, '檔案不存在');
+        }
 
-//         if (!profile) {
-//             throw new HttpException(404, '檔案不存在');
-//         }
+        if (!profile.is_public) {
+            throw new HttpException(403, '此檔案為私密');
+        }
 
-//         if (!profile.is_public) {
-//             throw new HttpException(403, '此檔案為私密');
-//         }
+        return profile;
+    }
 
-//         return profile;
-//     }
+    async update(id: string, data: UpdateProfileDto, userId: string) {
+        const profile = await prisma.profile.findFirst({
+            where: { id, user_id: userId },
+        });
 
-//     async setDefault(profileId: string, userId: string) {
-//         const profile = await prisma.profile.findFirst({
-//             where: { id: profileId, user_id: userId },
-//         });
+        if (!profile) {
+            throw new HttpException(404, '檔案不存在或無權訪問');
+        }
 
-//         if (!profile) {
-//             throw new HttpException(404, '檔案不存在');
-//         }
+        return await prisma.profile.update({
+            where: { id },
+            data: {
+                ...data,
+                slug: data.name ? await generateSlug(data.name) : undefined,
+            },
+        });
+    }
 
-//         await prisma.$transaction([
-//             prisma.profile.updateMany({
-//                 where: { user_id: userId, is_default: true },
-//                 data: { is_default: false },
-//             }),
-//             prisma.profile.update({
-//                 where: { id: profileId },
-//                 data: { is_default: true },
-//             }),
-//         ]);
+    async delete(id: string, userId: string) {
+        const profile = await prisma.profile.findFirst({
+            where: { id, user_id: userId },
+        });
 
-//         return profile;
-//     }
-// }
+        if (!profile) {
+            throw new HttpException(404, '檔案不存在或無權訪問');
+        }
+
+        if (profile.is_default) {
+            throw new HttpException(400, '無法刪除默認檔案');
+        }
+
+        await prisma.profile.delete({ where: { id } });
+    }
+}

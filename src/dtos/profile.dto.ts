@@ -12,10 +12,6 @@ export class CreateProfileDto {
     @IsOptional()
     is_public?: boolean;
 
-    @IsString()
-    @IsOptional()
-    profile_image?: string;
-
     @IsObject()
     @IsOptional()
     meta?: Record<string, any>;
@@ -25,4 +21,7 @@ export class CreateProfileDto {
     appearance?: Record<string, any>;
 }
 
-export class UpdateProfileDto extends CreateProfileDto {}
+export class UpdateProfileDto extends CreateProfileDto {
+    @IsString()
+    name: string;
+}
