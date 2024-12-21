@@ -1,4 +1,4 @@
-import { SnakeNamingStrategy } from "typeorm-naming-strategies";
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 const { DataSource } = require('typeorm');
 require('dotenv').config();
@@ -9,12 +9,12 @@ const prodConfig = {
     type: 'postgres',
     url: process.env.POSTGRES_PRISMA_URL,
     ssl: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
     },
     entities: ['dist/models/**/*.js'],
     migrations: ['dist/migrations/**/*.js'],
     synchronize: false,
-    logging: ['error'],
+    logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
     namingStrategy: new SnakeNamingStrategy(),
 };
 

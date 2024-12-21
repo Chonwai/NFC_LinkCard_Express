@@ -15,7 +15,7 @@ const prodConfig: DataSourceOptions = {
     entities: ['dist/models/**/*.js'],
     migrations: ['dist/migrations/**/*.js'],
     synchronize: false,
-    logging: ['error'],
+    logging: ['query', 'error', 'schema', 'warn', 'info', 'log'],
     namingStrategy: new SnakeNamingStrategy(),
 };
 
