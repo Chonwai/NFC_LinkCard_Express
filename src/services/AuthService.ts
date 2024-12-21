@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
 import { HttpException } from '../utils/HttpException';
+import { generateSlug } from '../utils/slugGenerator';
 
 export class AuthService {
     async register(registerDto: RegisterDto) {
@@ -14,10 +15,27 @@ export class AuthService {
             throw new HttpException(400, '用戶已存在');
         }
 
-        const user = await prisma.user.createWithHashedPassword(registerDto);
-        const token = prisma.user.generateToken(user);
+        return await prisma.$transaction(async (tx) => {
+            const user = await tx.user.createWithHashedPassword(registerDto);
 
-        return { user, token };
+            const defaultProfile = await tx.profile.create({
+                data: {
+                    name: user.username,
+                    slug: await generateSlug(user.username),
+                    user_id: user.id,
+                    is_default: true,
+                    description: `${user.username}'s default profile`,
+                },
+            });
+
+            const token = prisma.user.generateToken(user);
+
+            return {
+                user,
+                profile: defaultProfile,
+                token,
+            };
+        });
     }
 
     async login(loginDto: LoginDto) {
