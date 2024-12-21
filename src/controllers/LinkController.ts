@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { LinkService } from '../services/LinkService';
-import { ApiResponse } from '../utils/apiResponse';
+import { ApiResponse } from '../utils/ApiResponse';
 
 export class LinkController {
     private linkService: LinkService;

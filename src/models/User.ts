@@ -5,9 +5,13 @@ import {
     OneToMany,
     CreateDateColumn,
     UpdateDateColumn,
+    BeforeInsert,
+    BeforeUpdate,
 } from 'typeorm';
 import { Link } from './Link';
 import { Profile } from './Profile';
+import * as bcrypt from 'bcryptjs';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class User {
@@ -21,6 +25,7 @@ export class User {
     email: string;
 
     @Column()
+    @Exclude()
     password: string;
 
     @Column({ nullable: true })
@@ -52,4 +57,16 @@ export class User {
 
     @Column({ nullable: true })
     resetPasswordToken: string;
+
+    @BeforeInsert()
+    @BeforeUpdate()
+    async hashPassword() {
+        if (this.password) {
+            this.password = await bcrypt.hash(this.password, 10);
+        }
+    }
+
+    async validatePassword(password: string): Promise<boolean> {
+        return bcrypt.compare(password, this.password);
+    }
 }
