@@ -4,6 +4,7 @@ import { ApiResponse } from '../utils/ApiResponse';
 import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
+import { User } from '../models/User';
 
 export class AuthController {
     private authService: AuthService;
@@ -21,8 +22,10 @@ export class AuthController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const result = await this.authService.register(registerDto);
-            return ApiResponse.success(res, result, 201);
+            const { user } = await this.authService.register(registerDto);
+            const token = this.authService.generateToken(user as User);
+
+            return ApiResponse.success(res, { user }, 201, { Authorization: `Bearer ${token}` });
         } catch (error: any) {
             return ApiResponse.error(
                 res,
@@ -43,8 +46,10 @@ export class AuthController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const result = await this.authService.login(loginDto);
-            return ApiResponse.success(res, result);
+            const { user } = await this.authService.login(loginDto);
+            const token = this.authService.generateToken(user as User);
+
+            return ApiResponse.success(res, { user }, 200, { Authorization: `Bearer ${token}` });
         } catch (error: any) {
             return ApiResponse.error(res, error.message, 'LOGIN_ERROR', null, error.status || 500);
         }

@@ -4,11 +4,12 @@ import { RegisterDto, LoginDto } from '../dtos/auth.dto';
 import * as jwt from 'jsonwebtoken';
 import { jwtConfig } from '../config/jwt.config';
 import { HttpException } from '../utils/HttpException';
+import { classToPlain } from 'class-transformer';
 
 export class AuthService {
     private userRepository = AppDataSource.getRepository(User);
 
-    async register(registerDto: RegisterDto): Promise<{ user: User; token: string }> {
+    async register(registerDto: RegisterDto): Promise<{ user: Partial<User> }> {
         const existingUser = await this.userRepository.findOne({
             where: [{ email: registerDto.email }, { username: registerDto.username }],
         });
@@ -20,11 +21,10 @@ export class AuthService {
         const user = this.userRepository.create(registerDto);
         await this.userRepository.save(user);
 
-        const token = this.generateToken(user);
-        return { user, token };
+        return { user: classToPlain(user) as Partial<User> };
     }
 
-    async login(loginDto: LoginDto): Promise<{ user: User; token: string }> {
+    async login(loginDto: LoginDto): Promise<{ user: Partial<User> }> {
         const user = await this.userRepository.findOne({
             where: { email: loginDto.email },
         });
@@ -38,11 +38,10 @@ export class AuthService {
             throw new HttpException(401, '密碼錯誤');
         }
 
-        const token = this.generateToken(user);
-        return { user, token };
+        return { user: classToPlain(user) as Partial<User> };
     }
 
-    private generateToken(user: User): string {
+    public generateToken(user: User): string {
         return jwt.sign({ id: user.id, email: user.email }, jwtConfig.secret, {
             expiresIn: jwtConfig.expiresIn,
         });

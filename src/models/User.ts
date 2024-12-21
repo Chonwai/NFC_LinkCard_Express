@@ -50,12 +50,15 @@ export class User {
     profiles: Profile[];
 
     @Column({ default: false })
+    @Exclude()
     isVerified: boolean;
 
     @Column({ nullable: true })
+    @Exclude()
     verificationToken: string;
 
     @Column({ nullable: true })
+    @Exclude()
     resetPasswordToken: string;
 
     @BeforeInsert()

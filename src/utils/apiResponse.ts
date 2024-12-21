@@ -1,7 +1,16 @@
 import { Response } from 'express';
 
 export class ApiResponse {
-    static success(res: Response, data: any = {}, status: number = 200) {
+    static success(
+        res: Response,
+        data: any = {},
+        status: number = 200,
+        headers: Record<string, string> = {},
+    ) {
+        Object.entries(headers).forEach(([key, value]) => {
+            res.header(key, value);
+        });
+
         return res.status(status).json({
             success: true,
             data,
