@@ -6,6 +6,10 @@ const PLATFORM_MAP: Record<LinkType, LinkPlatform[]> = {
         LinkPlatform.FACEBOOK,
         LinkPlatform.INSTAGRAM,
         LinkPlatform.LINKEDIN,
+        LinkPlatform.TELEGRAM,
+        LinkPlatform.WECHAT,
+        LinkPlatform.X,
+        LinkPlatform.YOUTUBE,
     ],
     [LinkType.CUSTOM]: [
         LinkPlatform.WEBSITE,
@@ -30,6 +34,10 @@ export function validatePlatformUrl(platform: LinkPlatform, url: string): boolea
         [LinkPlatform.FACEBOOK]: /^https:\/\/(www\.)?facebook\.com\/[\w.]+$/,
         [LinkPlatform.INSTAGRAM]: /^https:\/\/(www\.)?instagram\.com\/[\w.]+$/,
         [LinkPlatform.LINKEDIN]: /^https:\/\/(www\.)?linkedin\.com\/in\/[\w-]+$/,
+        [LinkPlatform.TELEGRAM]: /^https:\/\/t\.me\/[\w_]+$/,
+        [LinkPlatform.WECHAT]: /^weixin:\/\/[\w-]+$/,
+        [LinkPlatform.X]: /^https:\/\/(www\.)?x\.com\/[\w]+$/,
+        [LinkPlatform.YOUTUBE]: /^https:\/\/(www\.)?youtube\.com\/(c\/|channel\/|@)?[\w-]+$/,
         [LinkPlatform.EMAIL]: /^mailto:[\w-]+(\.[\w-]+)*@([\w-]+\.)+[\w-]{2,}$/,
         [LinkPlatform.PHONE]: /^tel:\+?[\d-]+$/,
         [LinkPlatform.WEBSITE]: /^https?:\/\/.+$/,
@@ -38,7 +46,7 @@ export function validatePlatformUrl(platform: LinkPlatform, url: string): boolea
 
     const pattern = urlPatterns[platform];
     if (!pattern) {
-        return true; // 如果沒有特定的驗證規則，返回 true
+        return true;
     }
     return pattern.test(url);
 }

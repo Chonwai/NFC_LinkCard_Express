@@ -111,7 +111,10 @@ enum LinkPlatform {
   FACEBOOK
   INSTAGRAM
   LINKEDIN
-  
+  TELEGRAM
+  WECHAT
+  X
+  YOUTUBE
   // Custom Platforms
   WEBSITE
   PHONE
