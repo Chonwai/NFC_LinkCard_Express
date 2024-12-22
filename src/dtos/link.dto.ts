@@ -35,10 +35,38 @@ export class CreateLinkDto {
     platform?: LinkPlatform;
 }
 
-export class UpdateLinkDto extends CreateLinkDto {
-    @IsString()
+export class UpdateLinkDto {
     @IsOptional()
-    profile_id: string;
+    @IsString()
+    title?: string;
+
+    @IsOptional()
+    @IsUrl()
+    url?: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    is_active?: boolean;
+
+    @IsOptional()
+    @IsString()
+    icon?: string;
+
+    @IsOptional()
+    @IsEnum(LinkType)
+    type?: LinkType;
+
+    @IsOptional()
+    @IsEnum(LinkPlatform)
+    platform?: LinkPlatform;
+
+    @IsOptional()
+    @IsNumber()
+    display_order?: number;
 }
 
 export class ReorderLinkDto {

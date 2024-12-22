@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, IsUrl } from 'class-validator';
 
 export class CreateProfileDto {
     @IsString()
@@ -21,7 +21,25 @@ export class CreateProfileDto {
     appearance?: Record<string, any>;
 }
 
-export class UpdateProfileDto extends CreateProfileDto {
+export class UpdateProfileDto {
+    @IsOptional()
     @IsString()
-    name: string;
+    name?: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    is_public?: boolean;
+
+    @IsOptional()
+    @IsString()
+    @IsUrl()
+    avatar?: string;
+
+    @IsOptional()
+    @IsString()
+    theme?: string;
 }

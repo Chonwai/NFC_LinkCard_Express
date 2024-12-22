@@ -14,7 +14,7 @@ router.get('/:slug', profileController.getBySlug);
 // 其他需要認證的路由
 router.use(authMiddleware);
 router.post('/', profileController.create);
-router.put('/:id', profileController.update);
+router.patch('/:id', profileController.update);
 router.delete('/:id', profileController.delete);
 
 export default router;

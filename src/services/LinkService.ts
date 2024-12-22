@@ -1,7 +1,7 @@
 import { LinkType, LinkPlatform, Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { HttpException } from '../utils/HttpException';
-import { ReorderLinkDto, CreateLinkDto } from '../dtos/link.dto';
+import { ReorderLinkDto, CreateLinkDto, UpdateLinkDto } from '../dtos/link.dto';
 import { isValidPlatformForType, validatePlatformUrl } from '../validators/link.validator';
 import { ApiResponse } from '../utils/apiResponse';
 import { ErrorHandler } from '../utils/ErrorHandler';
@@ -54,13 +54,25 @@ export class LinkService {
         });
     }
 
-    async update(id: string, data: Prisma.LinkUpdateInput, userId: string, res: Response) {
+    async update(id: string, data: UpdateLinkDto, userId: string, res: Response) {
         const link = await prisma.link.findFirst({
             where: { id, user_id: userId },
         });
 
         if (!link) {
             return ErrorHandler.notFound(res, '連結不存在或無權訪問', 'LINK_NOT_FOUND');
+        }
+
+        if (data.type && data.platform) {
+            if (!isValidPlatformForType(data.type, data.platform)) {
+                return ErrorHandler.badRequest(res, '無效的平台類型組合', 'INVALID_PLATFORM_TYPE');
+            }
+        }
+
+        if (data.url && data.platform) {
+            if (!validatePlatformUrl(data.platform, data.url)) {
+                return ErrorHandler.badRequest(res, '無效的 URL 格式', 'INVALID_URL_FORMAT');
+            }
         }
 
         return await prisma.link.update({

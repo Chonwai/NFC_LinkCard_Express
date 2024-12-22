@@ -10,7 +10,7 @@ router.use(authMiddleware);
 
 router.post('/', linkController.create);
 router.get('/', linkController.getAll);
-router.put('/:id', linkController.update);
+router.patch('/:id', linkController.update);
 router.delete('/:id', linkController.delete);
 router.patch('/reorder', linkController.reorder);
 router.get('/profile/:profileId', linkController.getByProfile);

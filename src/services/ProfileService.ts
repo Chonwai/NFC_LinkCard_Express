@@ -79,11 +79,22 @@ export class ProfileService {
             return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
         }
 
+        const updateData = {
+            ...data,
+            slug: profile.slug,
+        };
+
         return await prisma.profile.update({
             where: { id },
-            data: {
-                ...data,
-                slug: profile.slug,
+            data: updateData,
+            include: {
+                user: {
+                    select: {
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                    },
+                },
             },
         });
     }
