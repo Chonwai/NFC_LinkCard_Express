@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { LinkType, LinkPlatform, Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { HttpException } from '../utils/HttpException';
 import { ReorderLinkDto, CreateLinkDto } from '../dtos/link.dto';
@@ -16,11 +16,11 @@ export class LinkService {
             // ApiResponse.error(res, '無權訪問此檔案', 'FORBIDDEN', null, 403);
         }
 
-        if (!isValidPlatformForType(data.type, data.platform)) {
+        if (!isValidPlatformForType(data.type as LinkType, data.platform as LinkPlatform)) {
             throw new HttpException(400, '無效的平台類型組合');
         }
 
-        if (!validatePlatformUrl(data.platform, data.url)) {
+        if (!validatePlatformUrl(data.platform as LinkPlatform, data.url)) {
             throw new HttpException(400, '無效的 URL 格式');
         }
 
