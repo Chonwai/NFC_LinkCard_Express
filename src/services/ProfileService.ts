@@ -1,6 +1,5 @@
 import prisma from '../lib/prisma';
 import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
-import { HttpException } from '../utils/HttpException';
 import { generateSlug } from '../utils/slugGenerator';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { Response } from 'express';

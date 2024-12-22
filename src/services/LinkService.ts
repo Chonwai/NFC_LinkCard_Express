@@ -1,9 +1,7 @@
-import { LinkType, LinkPlatform, Prisma } from '@prisma/client';
+import { LinkPlatform } from '@prisma/client';
 import prisma from '../lib/prisma';
-import { HttpException } from '../utils/HttpException';
 import { ReorderLinkDto, CreateLinkDto, UpdateLinkDto } from '../dtos/link.dto';
 import { isValidPlatformForType, validatePlatformUrl } from '../validators/link.validator';
-import { ApiResponse } from '../utils/apiResponse';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { Response } from 'express';
 
