@@ -26,7 +26,7 @@ export class LinkController {
                 return ApiResponse.error(res, '使用者未驗證', 'UNAUTHORIZED', null, 401);
             }
 
-            const link = await this.linkService.create(createLinkDto, req.user.id as string);
+            const link = await this.linkService.create(createLinkDto, req.user.id as string, res);
             return ApiResponse.success(res, { link }, 201);
         } catch (error) {
             next(error);
@@ -50,6 +50,7 @@ export class LinkController {
                 req.params.id,
                 updateLinkDto,
                 req.user.id as string,
+                res,
             );
             return ApiResponse.success(res, { link });
         } catch (error: unknown) {
@@ -70,7 +71,7 @@ export class LinkController {
                 return ApiResponse.error(res, '使用者未驗證', 'UNAUTHORIZED', null, 401);
             }
 
-            await this.linkService.delete(req.params.id, req.user.id as string);
+            await this.linkService.delete(req.params.id, req.user.id as string, res);
             return ApiResponse.success(res, {}, 204);
         } catch (error: unknown) {
             const apiError = error as ApiError;
@@ -140,7 +141,11 @@ export class LinkController {
             }
 
             const { profileId } = req.params;
-            const links = await this.linkService.findByProfile(profileId, req.user.id as string);
+            const links = await this.linkService.findByProfile(
+                profileId,
+                req.user.id as string,
+                res,
+            );
             return ApiResponse.success(res, { links });
         } catch (error: unknown) {
             const apiError = error as ApiError;

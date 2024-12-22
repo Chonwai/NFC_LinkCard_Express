@@ -54,7 +54,7 @@ export class ProfileController {
 
     getBySlug = async (req: Request, res: Response) => {
         try {
-            const profile = await this.profileService.findBySlug(req.params.slug);
+            const profile = await this.profileService.findBySlug(req.params.slug, res);
             return ApiResponse.success(res, { profile });
         } catch (error: unknown) {
             const apiError = error as ApiError;
@@ -81,6 +81,7 @@ export class ProfileController {
                 req.params.id,
                 updateProfileDto,
                 req.user!.id,
+                res,
             );
             return ApiResponse.success(res, { profile });
         } catch (error: unknown) {
@@ -97,7 +98,7 @@ export class ProfileController {
 
     delete = async (req: Request, res: Response) => {
         try {
-            await this.profileService.delete(req.params.id, req.user!.id);
+            await this.profileService.delete(req.params.id, req.user!.id, res);
             return ApiResponse.success(res, {}, 204);
         } catch (error: unknown) {
             const apiError = error as ApiError;

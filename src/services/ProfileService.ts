@@ -2,6 +2,8 @@ import prisma from '../lib/prisma';
 import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
 import { HttpException } from '../utils/HttpException';
 import { generateSlug } from '../utils/slugGenerator';
+import { ErrorHandler } from '../utils/ErrorHandler';
+import { Response } from 'express';
 
 export class ProfileService {
     async create(data: CreateProfileDto, userId: string) {
@@ -38,7 +40,7 @@ export class ProfileService {
         });
     }
 
-    async findBySlug(slug: string) {
+    async findBySlug(slug: string, res: Response) {
         const profile = await prisma.profile.findUnique({
             where: { slug },
             include: {
@@ -58,23 +60,23 @@ export class ProfileService {
         });
 
         if (!profile) {
-            throw new HttpException(404, '檔案不存在');
+            return ErrorHandler.notFound(res, '檔案不存在', 'PROFILE_NOT_FOUND');
         }
 
         if (!profile.is_public) {
-            throw new HttpException(403, '此檔案為私密');
+            return ErrorHandler.forbidden(res, '此檔案為私密', 'PROFILE_PRIVATE');
         }
 
         return profile;
     }
 
-    async update(id: string, data: UpdateProfileDto, userId: string) {
+    async update(id: string, data: UpdateProfileDto, userId: string, res: Response) {
         const profile = await prisma.profile.findFirst({
             where: { id, user_id: userId },
         });
 
         if (!profile) {
-            throw new HttpException(404, '檔案不存在或無權訪問');
+            return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
         }
 
         return await prisma.profile.update({
@@ -86,17 +88,21 @@ export class ProfileService {
         });
     }
 
-    async delete(id: string, userId: string) {
+    async delete(id: string, userId: string, res: Response) {
         const profile = await prisma.profile.findFirst({
             where: { id, user_id: userId },
         });
 
         if (!profile) {
-            throw new HttpException(404, '檔案不存在或無權訪問');
+            return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
         }
 
         if (profile.is_default) {
-            throw new HttpException(400, '無法刪除默認檔案');
+            return ErrorHandler.badRequest(
+                res,
+                '無法刪除默認檔案',
+                'CANNOT_DELETE_DEFAULT_PROFILE',
+            );
         }
 
         await prisma.profile.delete({ where: { id } });

@@ -4,24 +4,25 @@ import { HttpException } from '../utils/HttpException';
 import { ReorderLinkDto, CreateLinkDto } from '../dtos/link.dto';
 import { isValidPlatformForType, validatePlatformUrl } from '../validators/link.validator';
 import { ApiResponse } from '../utils/apiResponse';
+import { ErrorHandler } from '../utils/ErrorHandler';
+import { Response } from 'express';
 
 export class LinkService {
-    async create(data: CreateLinkDto, userId: string) {
+    async create(data: CreateLinkDto, userId: string, res: Response) {
         const profile = await prisma.profile.findFirst({
             where: { id: data.profile_id, user_id: userId },
         });
 
         if (!profile) {
-            // throw new HttpException(403, '無權訪問此檔案');
-            // ApiResponse.error(res, '無權訪問此檔案', 'FORBIDDEN', null, 403);
+            return ErrorHandler.forbidden(res, '無權訪問此檔案', 'PROFILE_ACCESS_DENIED');
         }
 
-        if (!isValidPlatformForType(data.type as LinkType, data.platform as LinkPlatform)) {
-            throw new HttpException(400, '無效的平台類型組合');
+        if (!isValidPlatformForType(data.type, data.platform as LinkPlatform)) {
+            return ErrorHandler.badRequest(res, '無效的平台類型組合', 'INVALID_PLATFORM_TYPE');
         }
 
         if (!validatePlatformUrl(data.platform as LinkPlatform, data.url)) {
-            throw new HttpException(400, '無效的 URL 格式');
+            return ErrorHandler.badRequest(res, '無效的 URL 格式', 'INVALID_URL_FORMAT');
         }
 
         return await prisma.link.create({
@@ -53,13 +54,13 @@ export class LinkService {
         });
     }
 
-    async update(id: string, data: Prisma.LinkUpdateInput, userId: string) {
+    async update(id: string, data: Prisma.LinkUpdateInput, userId: string, res: Response) {
         const link = await prisma.link.findFirst({
             where: { id, user_id: userId },
         });
 
         if (!link) {
-            throw new HttpException(404, '連結不存在或無權訪問');
+            return ErrorHandler.notFound(res, '連結不存在或無權訪問', 'LINK_NOT_FOUND');
         }
 
         return await prisma.link.update({
@@ -71,13 +72,13 @@ export class LinkService {
         });
     }
 
-    async delete(id: string, userId: string) {
+    async delete(id: string, userId: string, res: Response) {
         const link = await prisma.link.findFirst({
             where: { id, user_id: userId },
         });
 
         if (!link) {
-            throw new HttpException(404, '連結不存在或無權訪問');
+            return ErrorHandler.notFound(res, '連結不存在或無權訪問', 'LINK_NOT_FOUND');
         }
 
         await prisma.link.delete({ where: { id } });
@@ -99,14 +100,14 @@ export class LinkService {
         );
     }
 
-    async findByProfile(profileId: string, userId: string) {
+    async findByProfile(profileId: string, userId: string, res: Response) {
         const profile = await prisma.profile.findFirst({
             where: { id: profileId, user_id: userId },
             include: { links: true },
         });
 
         if (!profile) {
-            throw new HttpException(404, '檔案不存在或無權訪問');
+            return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
         }
 
         return profile.links;
