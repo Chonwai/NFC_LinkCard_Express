@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import { HttpException } from '../utils/HttpException';
 import { ReorderLinkDto, CreateLinkDto } from '../dtos/link.dto';
+import { isValidPlatformForType, validatePlatformUrl } from '../validators/link.validator';
+import { ApiResponse } from '../utils/apiResponse';
 
 export class LinkService {
     async create(data: CreateLinkDto, userId: string) {
@@ -10,7 +12,16 @@ export class LinkService {
         });
 
         if (!profile) {
-            throw new HttpException(403, '無權訪問此檔案');
+            // throw new HttpException(403, '無權訪問此檔案');
+            // ApiResponse.error(res, '無權訪問此檔案', 'FORBIDDEN', null, 403);
+        }
+
+        if (!isValidPlatformForType(data.type, data.platform)) {
+            throw new HttpException(400, '無效的平台類型組合');
+        }
+
+        if (!validatePlatformUrl(data.platform, data.url)) {
+            throw new HttpException(400, '無效的 URL 格式');
         }
 
         return await prisma.link.create({

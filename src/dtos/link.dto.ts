@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsBoolean, IsNumber, IsUrl, IsEnum } from 'class-validator';
-import { LinkType } from '@prisma/client';
+import { LinkType, LinkPlatform } from '@prisma/client';
 
 export class CreateLinkDto {
     @IsString()
@@ -28,12 +28,11 @@ export class CreateLinkDto {
     display_order?: number;
 
     @IsEnum(LinkType)
-    @IsOptional()
-    type?: LinkType;
+    type: LinkType;
 
-    @IsString()
+    @IsEnum(LinkPlatform)
     @IsOptional()
-    platform?: string;
+    platform?: LinkPlatform;
 }
 
 export class UpdateLinkDto extends CreateLinkDto {

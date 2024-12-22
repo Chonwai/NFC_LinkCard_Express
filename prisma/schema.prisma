@@ -73,7 +73,7 @@ model Link {
   profile       Profile     @relation(fields: [profile_id], references: [id])
   meta          Json?       @default("{}")
   type          LinkType    @default(CUSTOM)
-  platform      String?
+  platform      LinkPlatform?
   analytics     Analytics[]
 
   @@index([user_id])
@@ -103,4 +103,18 @@ model Analytics {
 enum LinkType {
   CUSTOM
   SOCIAL
+}
+
+enum LinkPlatform {
+  // Social Platforms
+  GITHUB
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  
+  // Custom Platforms
+  WEBSITE
+  PHONE
+  EMAIL
+  LOCATION
 }
