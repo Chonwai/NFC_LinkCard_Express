@@ -2,9 +2,11 @@ import prisma from '../lib/prisma';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
 import { HttpException } from '../utils/HttpException';
 import { generateSlug } from '../utils/slugGenerator';
+import { Response } from 'express';
+import { ErrorHandler } from '../utils/ErrorHandler';
 
 export class AuthService {
-    async register(registerDto: RegisterDto) {
+    async register(registerDto: RegisterDto, res: Response) {
         const existingUser = await prisma.user.findFirst({
             where: {
                 OR: [{ email: registerDto.email }, { username: registerDto.username }],
@@ -12,7 +14,7 @@ export class AuthService {
         });
 
         if (existingUser) {
-            throw new HttpException(400, '用戶已存在');
+            return ErrorHandler.badRequest(res, '用戶已存在', 'USER_EXISTS');
         }
 
         return await prisma.$transaction(async (tx) => {
@@ -38,13 +40,13 @@ export class AuthService {
         });
     }
 
-    async login(loginDto: LoginDto) {
+    async login(loginDto: LoginDto, res: Response) {
         const user = await prisma.user.findUnique({
             where: { email: loginDto.email },
         });
 
         if (!user) {
-            throw new HttpException(401, '用戶不存在');
+            return ErrorHandler.unauthorized(res, '用戶不存在', 'USER_NOT_FOUND');
         }
 
         const isValidPassword = await prisma.user.validatePassword(
@@ -53,7 +55,7 @@ export class AuthService {
         );
 
         if (!isValidPassword) {
-            throw new HttpException(401, '密碼錯誤');
+            return ErrorHandler.unauthorized(res, '密碼錯誤', 'INVALID_PASSWORD');
         }
 
         const { password, ...userWithoutPassword } = user;
