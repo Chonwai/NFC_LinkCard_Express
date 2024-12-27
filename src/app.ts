@@ -13,7 +13,7 @@ app.use(
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Authorization'],
         credentials: true,
-        maxAge: 86400
+        maxAge: 86400,
     }),
 );
 app.use(express.json());

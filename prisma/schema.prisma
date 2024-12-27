@@ -52,7 +52,7 @@ model Profile {
   meta          Json?    @default("{}")
   appearance    Json?    @default("{}")
 
-  @@unique([user_id, is_default])
+  @@index([user_id])
   @@map("profiles")
 }
 
