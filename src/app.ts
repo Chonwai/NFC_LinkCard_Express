@@ -8,7 +8,12 @@ const app = express();
 
 app.use(
     cors({
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://127.0.0.1:3005',
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Authorization'],
+        credentials: true,
+        maxAge: 86400
     }),
 );
 app.use(express.json());

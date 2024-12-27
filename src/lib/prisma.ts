@@ -3,7 +3,14 @@ import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { jwtConfig } from '../config/jwt.config';
 
-const prisma = new PrismaClient().$extends({
+const prisma = new PrismaClient({
+    datasources: {
+        db: {
+            url: process.env.POSTGRES_PRISMA_URL,
+        },
+    },
+    log: ['query', 'error', 'warn'],
+}).$extends({
     model: {
         user: {
             async hashPassword(password: string) {
