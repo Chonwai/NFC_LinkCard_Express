@@ -111,4 +111,20 @@ export class ProfileController {
             );
         }
     };
+
+    setDefault = async (req: Request, res: Response) => {
+        try {
+            const profile = await this.profileService.setDefault(req.params.id, req.user!.id, res);
+            return ApiResponse.success(res, { profile });
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '設置默認檔案失敗',
+                'PROFILE_SET_DEFAULT_ERROR',
+                apiError.message,
+                apiError.status || 500,
+            );
+        }
+    };
 }

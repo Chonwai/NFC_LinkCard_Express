@@ -16,5 +16,6 @@ router.use(authMiddleware);
 router.post('/', profileController.create);
 router.patch('/:id', profileController.update);
 router.delete('/:id', profileController.delete);
+router.patch('/:id/default', profileController.setDefault);
 
 export default router;
