@@ -3,8 +3,18 @@ import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
 import { generateSlug } from '../utils/slugGenerator';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { Response } from 'express';
+import { FileUploadService } from './FileUploadService';
+import { VercelBlobProvider } from '../storage/vercel-blob.provider';
 
 export class ProfileService {
+    private fileUploadService: FileUploadService;
+
+    constructor() {
+        // 初始化文件上傳服務，使用 Vercel Blob 提供者
+        const storageProvider = new VercelBlobProvider(process.env.BLOB_READ_WRITE_TOKEN);
+        this.fileUploadService = new FileUploadService(storageProvider);
+    }
+
     async create(data: CreateProfileDto, userId: string) {
         const slug = await generateSlug(data.name);
 
@@ -167,5 +177,47 @@ export class ProfileService {
                 },
             });
         });
+    }
+
+    async uploadProfileImage(id: string, userId: string, file: Express.Multer.File, res: Response) {
+        // 檢查檔案是否存在且屬於該用戶
+        const profile = await prisma.profile.findFirst({
+            where: { id, user_id: userId },
+        });
+
+        if (!profile) {
+            return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
+        }
+
+        try {
+            // 使用文件上傳服務處理圖片
+            const result = await this.fileUploadService.uploadImage(file, 'profiles', {
+                width: 800, // 保持較大的尺寸以確保圖片質量
+                height: 800,
+                quality: 80,
+                maxSizeKB: 100, // 嚴格限制在 100KB 內
+                format: 'webp', // 使用 WebP 格式以獲得更好的壓縮率
+            });
+
+            // 更新檔案封面圖片
+            const updatedProfile = await prisma.profile.update({
+                where: { id },
+                data: { profile_image: result.url },
+                include: {
+                    user: {
+                        select: {
+                            username: true,
+                            display_name: true,
+                            avatar: true,
+                        },
+                    },
+                },
+            });
+
+            return updatedProfile;
+        } catch (error) {
+            console.error('檔案封面上傳失敗:', error);
+            throw error;
+        }
     }
 }

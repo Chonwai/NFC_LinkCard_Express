@@ -127,4 +127,29 @@ export class ProfileController {
             );
         }
     };
+
+    uploadProfileImage = async (req: Request, res: Response) => {
+        try {
+            if (!req.file) {
+                return ApiResponse.error(res, '請上傳圖片', 'NO_FILE_UPLOADED', null, 400);
+            }
+
+            const profile = await this.profileService.uploadProfileImage(
+                req.params.id,
+                req.user!.id,
+                req.file,
+                res,
+            );
+            return ApiResponse.success(res, { profile });
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '上傳檔案封面失敗',
+                'PROFILE_IMAGE_UPLOAD_ERROR',
+                apiError.message,
+                apiError.status || 500,
+            );
+        }
+    };
 }
