@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import authRoutes from './auth';
-import linkRoutes from './links';
 import profileRoutes from './profiles';
-// import analyticsRoutes from './analytics';
+import linkRoutes from './links';
+import userRoutes from './users';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
-router.use('/links', linkRoutes);
 router.use('/profiles', profileRoutes);
-// router.use('/analytics', analyticsRoutes);
+router.use('/links', linkRoutes);
+router.use('/users', userRoutes);
 
 export default router;
