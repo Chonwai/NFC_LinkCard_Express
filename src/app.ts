@@ -8,7 +8,17 @@ const app = express();
 
 app.use(
     cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://127.0.0.1:3005', // 允許的來源
+        // origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://127.0.0.1:3005', // 允許的來源
+        origin: [
+            'http://127.0.0.1:3005',
+            'http://localhost:3005',
+            'https://link-card-frontend.vercel.app',
+            'http://link-card-frontend.vercel.app',
+            'link-card-frontend.vercel.app',
+            'https://nfc-link-card-express.vercel.app',
+            'http://nfc-link-card-express.vercel.app',
+            'nfc-link-card-express.vercel.app',
+        ],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Authorization'],
