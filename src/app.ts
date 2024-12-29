@@ -8,7 +8,7 @@ const app = express();
 
 app.use(
     cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://127.0.0.1:3005',
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://127.0.0.1:3005', // 允許的來源
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Authorization'],
