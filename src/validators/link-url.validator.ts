@@ -51,9 +51,7 @@ export class IsValidLinkUrlConstraint implements ValidatorConstraintInterface {
     defaultMessage(args: ValidationArguments) {
         const object = args.object as any;
         const platform = object.platform as LinkPlatform;
-        return platform
-            ? `URL 格式不正確，請參考 ${platform} 的標準格式`
-            : 'URL 格式不正確';
+        return platform ? `URL 格式不正確，請參考 ${platform} 的標準格式` : 'URL 格式不正確';
     }
 }
 
@@ -67,4 +65,4 @@ export function IsValidLinkUrl(validationOptions?: ValidationOptions) {
             validator: IsValidLinkUrlConstraint,
         });
     };
-} 
+}
