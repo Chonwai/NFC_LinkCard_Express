@@ -115,6 +115,10 @@ export class ProfileService {
             where: { id },
             data: updateData,
             include: {
+                links: {
+                    where: { is_active: true },
+                    orderBy: { display_order: 'asc' },
+                },
                 user: {
                     select: {
                         username: true,
