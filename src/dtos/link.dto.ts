@@ -1,11 +1,14 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsUrl, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsEnum } from 'class-validator';
 import { LinkType, LinkPlatform } from '@prisma/client';
+import { IsValidLinkUrl } from '../validators/link-url.validator';
 
 export class CreateLinkDto {
     @IsString()
     title: string;
 
-    @IsUrl()
+    @IsValidLinkUrl({
+        message: 'URL 格式不正確，請確保符合所選平台的標準格式',
+    })
     url: string;
 
     @IsString()
@@ -41,7 +44,9 @@ export class UpdateLinkDto {
     title?: string;
 
     @IsOptional()
-    @IsUrl()
+    @IsValidLinkUrl({
+        message: 'URL 格式不正確，請確保符合所選平台的標準格式',
+    })
     url?: string;
 
     @IsOptional()
