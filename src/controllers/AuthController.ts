@@ -1,31 +1,14 @@
 import { Request, Response } from 'express';
 import { AuthService } from '../services/AuthService';
 import { ApiResponse } from '../utils/apiResponse';
-import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
-import { RegisterDto, LoginDto } from '../dtos/auth.dto';
+import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from '../dtos/auth.dto';
 import { ApiError } from '../types/error.types';
 import { Service } from 'typedi';
 import { EmailService } from '../services/EmailService';
 import { UserService } from '../services/UserService';
 import crypto from 'crypto';
-import { IsEmail, MinLength, Matches } from 'class-validator';
-
-class ForgotPasswordDto {
-    @IsEmail({}, { message: '請輸入有效的電子郵件地址' })
-    email: string;
-}
-
-class ResetPasswordDto {
-    @IsEmail({}, { message: '請輸入有效的電子郵件地址' })
-    token: string;
-
-    @MinLength(8, { message: '密碼長度至少為8個字符' })
-    @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-        message: '密碼必須包含至少一個大寫字母、一個小寫字母和一個數字或特殊字符',
-    })
-    newPassword: string;
-}
+import { validate } from 'class-validator';
 
 @Service()
 export class AuthController {
@@ -139,6 +122,7 @@ export class AuthController {
     resetPassword = async (req: Request, res: Response) => {
         try {
             const resetPasswordDto = plainToClass(ResetPasswordDto, req.body);
+            console.log(resetPasswordDto);
             const errors = await validate(resetPasswordDto);
 
             if (errors.length > 0) {
