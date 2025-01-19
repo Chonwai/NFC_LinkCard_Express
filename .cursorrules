@@ -1,0 +1,77 @@
+# Cursor IDE 專案規則配置
+
+# AI 助手行為規則
+ai_rules:
+  # 代碼生成規則
+  code_generation:
+    - 遵循 Express.js 和 TypeScript 的最佳實踐
+    - 使用依賴注入模式進行開發
+    - 保持統一的錯誤處理模式
+    - 所有 API 必須包含完整的類型定義
+    - 所有數據庫操作必須通過 Prisma 處理
+    - 文件操作必須通過 Vercel Blob Storage 處理
+
+  # 代碼建議規則
+  suggestions:
+    - 提醒使用中間件進行認證驗證
+    - 建議在 services/ 中實現業務邏輯
+    - 檢查是否包含必要的錯誤處理
+    - 檢查是否正確使用了 DTO 和類型定義
+    - 提醒添加適當的日誌記錄
+
+# 編碼規範
+coding_standards:
+  # TypeScript 配置
+  typescript:
+    strict: true
+    noImplicitAny: true
+    strictNullChecks: true
+    experimentalDecorators: true
+    emitDecoratorMetadata: true
+
+  # 目錄結構規範
+  directory_structure:
+    controllers: src/controllers/
+    services: src/services/
+    dtos: src/dtos/
+    middlewares: src/middlewares/
+    utils: src/utils/
+    types: src/types/
+    routes: src/routes/
+    lib: src/lib/
+    storage: src/storage/
+
+  # API 實現規範
+  api_implementation:
+    controllers: business_logic_minimal    # 控制器中只包含基本的請求處理
+    services: business_logic_main         # 主要業務邏輯在服務層實現
+    dtos: request_validation              # 使用 DTO 進行請求驗證
+
+# 自動化行為
+automation:
+  # 文件創建模板
+  templates:
+    controller:
+      - 包含錯誤處理
+      - 包含請求驗證
+      - 包含響應格式化
+      - 使用依賴注入
+    
+    service:
+      - 包含完整的業務邏輯
+      - 包含事務處理
+      - 包含日誌記錄
+      - 使用依賴注入
+
+    dto:
+      - 包含驗證裝飾器
+      - 包含類型轉換
+      - 包含屬性描述
+
+  # 代碼檢查
+  checks:
+    - 確保使用了正確的錯誤處理模式
+    - 確保實現了適當的請求驗證
+    - 確保使用了正確的依賴注入
+    - 確保添加了必要的日誌記錄
+    - 確保實現了正確的事務處理 
