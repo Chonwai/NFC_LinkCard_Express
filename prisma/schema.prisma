@@ -26,6 +26,7 @@ model User {
   is_verified          Boolean     @default(false) @map("is_verified")
   verification_token   String?     @map("verification_token")
   reset_password_token String?     @map("reset_password_token")
+  reset_password_expires DateTime?   @map("reset_password_expires")
   created_at           DateTime    @default(now()) @map("created_at")
   updated_at           DateTime    @updatedAt @map("updated_at")
   links                Link[]

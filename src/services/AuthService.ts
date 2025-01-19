@@ -3,7 +3,9 @@ import { RegisterDto, LoginDto } from '../dtos/auth.dto';
 import { generateSlug } from '../utils/slugGenerator';
 import { Response } from 'express';
 import { ErrorHandler } from '../utils/ErrorHandler';
+import { Service } from 'typedi';
 
+@Service()
 export class AuthService {
     async register(registerDto: RegisterDto, res: Response) {
         const existingUser = await prisma.user.findFirst({

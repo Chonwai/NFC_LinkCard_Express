@@ -1,15 +1,13 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController';
+import Container from 'typedi';
 
 const router = Router();
-const authController = new AuthController();
+const authController = Container.get(AuthController);
 
-router.post('/register', (req, res, next) => {
-    authController.register(req, res).catch(next);
-});
-
-router.post('/login', (req, res, next) => {
-    authController.login(req, res).catch(next);
-});
+router.post('/register', authController.register);
+router.post('/login', authController.login);
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
 
 export default router;

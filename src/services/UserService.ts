@@ -5,7 +5,9 @@ import { Response } from 'express';
 import bcrypt from 'bcrypt';
 import { FileUploadService } from './FileUploadService';
 import { VercelBlobProvider } from '../storage/vercel-blob.provider';
+import { Service } from 'typedi';
 
+@Service()
 export class UserService {
     private fileUploadService: FileUploadService;
 
@@ -97,5 +99,58 @@ export class UserService {
             console.error('頭像上傳失敗:', error);
             throw error;
         }
+    }
+
+    async findByEmail(email: string) {
+        return await prisma.user.findUnique({
+            where: { email },
+        });
+    }
+
+    async updateResetPasswordToken(
+        userId: string,
+        resetToken: string,
+        resetExpires: Date,
+    ): Promise<void> {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                reset_password_token: resetToken,
+                reset_password_expires: resetExpires,
+            },
+        });
+    }
+
+    async findByResetToken(resetToken: string) {
+        return await prisma.user.findFirst({
+            where: {
+                reset_password_token: resetToken,
+                reset_password_expires: {
+                    gt: new Date(), // 確保 token 未過期
+                },
+            },
+        });
+    }
+
+    async clearResetPasswordToken(userId: string): Promise<void> {
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                reset_password_token: null,
+                reset_password_expires: null,
+            },
+        });
+    }
+
+    async resetPassword(userId: string, newPassword: string): Promise<void> {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                password: hashedPassword,
+                reset_password_token: null,
+                reset_password_expires: null,
+            },
+        });
     }
 }

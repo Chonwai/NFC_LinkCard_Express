@@ -5,13 +5,35 @@ import { validate } from 'class-validator';
 import { plainToClass } from 'class-transformer';
 import { RegisterDto, LoginDto } from '../dtos/auth.dto';
 import { ApiError } from '../types/error.types';
+import { Service } from 'typedi';
+import { EmailService } from '../services/EmailService';
+import { UserService } from '../services/UserService';
+import crypto from 'crypto';
+import { IsEmail, MinLength, Matches } from 'class-validator';
 
+class ForgotPasswordDto {
+    @IsEmail({}, { message: '請輸入有效的電子郵件地址' })
+    email: string;
+}
+
+class ResetPasswordDto {
+    @IsEmail({}, { message: '請輸入有效的電子郵件地址' })
+    token: string;
+
+    @MinLength(8, { message: '密碼長度至少為8個字符' })
+    @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+        message: '密碼必須包含至少一個大寫字母、一個小寫字母和一個數字或特殊字符',
+    })
+    newPassword: string;
+}
+
+@Service()
 export class AuthController {
-    private authService: AuthService;
-
-    constructor() {
-        this.authService = new AuthService();
-    }
+    constructor(
+        private readonly emailService: EmailService,
+        private readonly userService: UserService,
+        private readonly authService: AuthService,
+    ) {}
 
     register = async (req: Request, res: Response) => {
         try {
@@ -52,6 +74,96 @@ export class AuthController {
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(res, '登入失敗', 'LOGIN_ERROR', apiError.message, 500);
+        }
+    };
+
+    forgotPassword = async (req: Request, res: Response) => {
+        try {
+            const forgotPasswordDto = plainToClass(ForgotPasswordDto, req.body);
+            const errors = await validate(forgotPasswordDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            const user = await this.userService.findByEmail(forgotPasswordDto.email);
+            if (!user) {
+                return ApiResponse.error(
+                    res,
+                    '找不到此電子郵件地址的用戶',
+                    'USER_NOT_FOUND',
+                    null,
+                    404,
+                );
+            }
+
+            // 生成重設密碼 token
+            const resetToken = crypto.randomBytes(32).toString('hex');
+            const resetExpires = new Date(Date.now() + 3600000); // 1小時後過期
+
+            try {
+                // 更新用戶的重設密碼信息
+                await this.userService.updateResetPasswordToken(user.id, resetToken, resetExpires);
+
+                // 發送重設密碼郵件
+                await this.emailService.sendResetPasswordEmail(forgotPasswordDto.email, resetToken);
+
+                return ApiResponse.success(res, {
+                    message: '重設密碼郵件已發送，請檢查您的電子郵件',
+                });
+            } catch (emailError) {
+                // 如果發送郵件失敗，回滾 token
+                await this.userService.updateResetPasswordToken(user.id, null as any, null as any);
+                console.error('發送重設密碼郵件失敗:', emailError);
+
+                return ApiResponse.error(
+                    res,
+                    '發送重設密碼郵件失敗，請稍後再試',
+                    'EMAIL_SEND_ERROR',
+                    null,
+                    500,
+                );
+            }
+        } catch (error) {
+            console.error('Forgot password error:', error);
+            return ApiResponse.error(
+                res,
+                '處理忘記密碼請求時發生錯誤',
+                'FORGOT_PASSWORD_ERROR',
+                null,
+                500,
+            );
+        }
+    };
+
+    resetPassword = async (req: Request, res: Response) => {
+        try {
+            const resetPasswordDto = plainToClass(ResetPasswordDto, req.body);
+            const errors = await validate(resetPasswordDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            // 驗證 token 並查找用戶
+            const user = await this.userService.findByResetToken(resetPasswordDto.token);
+            if (!user) {
+                return ApiResponse.error(
+                    res,
+                    '無效或過期的重設密碼連結',
+                    'INVALID_RESET_TOKEN',
+                    null,
+                    400,
+                );
+            }
+
+            // 更新密碼
+            await this.userService.resetPassword(user.id, resetPasswordDto.newPassword);
+
+            return ApiResponse.success(res, { message: '密碼已成功重設' });
+        } catch (error) {
+            console.error('Reset password error:', error);
+            return ApiResponse.error(res, '重設密碼時發生錯誤', 'RESET_PASSWORD_ERROR', null, 500);
         }
     };
 }
