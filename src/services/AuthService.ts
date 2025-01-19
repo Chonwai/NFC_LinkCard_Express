@@ -28,10 +28,17 @@ interface RegisterResult {
 export class AuthService {
     constructor(private emailService: EmailService) {}
 
-    generateToken(user: { id: string }): string {
-        return jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'your-secret-key', {
-            expiresIn: '24h',
-        });
+    generateToken(user: { id: string; email: string }): string {
+        return jwt.sign(
+            {
+                id: user.id,
+                email: user.email,
+            },
+            process.env.JWT_SECRET || 'your-secret-key',
+            {
+                expiresIn: '24h',
+            },
+        );
     }
 
     async register(registerDto: RegisterDto, res: Response): Promise<RegisterResult | Response> {
@@ -47,35 +54,40 @@ export class AuthService {
 
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
-        return await prisma.$transaction(async (tx) => {
-            const user = await tx.user.createWithHashedPassword({
-                ...registerDto,
-                verification_token: verificationToken,
-                is_verified: false,
-                verified_at: null,
-            });
+        return await prisma.$transaction(
+            async (tx) => {
+                const user = await tx.user.createWithHashedPassword({
+                    ...registerDto,
+                    verification_token: verificationToken,
+                    is_verified: false,
+                    verified_at: null,
+                });
 
-            const defaultProfile = await tx.profile.create({
-                data: {
-                    name: user.username,
-                    slug: await generateSlug(user.username),
-                    user_id: user.id,
-                    is_default: true,
-                    description: `${user.username}'s default profile`,
-                },
-            });
+                const defaultProfile = await tx.profile.create({
+                    data: {
+                        name: user.username,
+                        slug: await generateSlug(user.username),
+                        user_id: user.id,
+                        is_default: true,
+                        description: `${user.username}'s default profile`,
+                    },
+                });
 
-            // 發送驗證郵件
-            await this.emailService.sendVerificationEmail(user.email, verificationToken);
+                // 發送驗證郵件
+                await this.emailService.sendVerificationEmail(user.email, verificationToken);
 
-            const token = this.generateToken(user);
+                const token = this.generateToken(user);
 
-            return {
-                user,
-                profile: defaultProfile,
-                token,
-            };
-        });
+                return {
+                    user,
+                    profile: defaultProfile,
+                    token,
+                };
+            },
+            {
+                timeout: 30000, // 30 秒超時
+            },
+        );
     }
 
     async login(loginDto: LoginDto, res: Response) {
