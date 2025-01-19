@@ -4,10 +4,37 @@ import { generateSlug } from '../utils/slugGenerator';
 import { Response } from 'express';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { Service } from 'typedi';
+import crypto from 'crypto';
+import { EmailService } from './EmailService';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+interface RegisterResult {
+    user: {
+        id: string;
+        username: string;
+        email: string;
+        display_name: string | null;
+        avatar: string | null;
+        bio: string | null;
+        is_verified: boolean;
+        created_at: Date;
+        updated_at: Date;
+    };
+    token: string;
+}
 
 @Service()
 export class AuthService {
-    async register(registerDto: RegisterDto, res: Response) {
+    constructor(private emailService: EmailService) {}
+
+    generateToken(user: { id: string }): string {
+        return jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'your-secret-key', {
+            expiresIn: '24h',
+        });
+    }
+
+    async register(registerDto: RegisterDto, res: Response): Promise<RegisterResult | Response> {
         const existingUser = await prisma.user.findFirst({
             where: {
                 OR: [{ email: registerDto.email }, { username: registerDto.username }],
@@ -18,8 +45,15 @@ export class AuthService {
             return ErrorHandler.badRequest(res, '用戶已存在', 'USER_EXISTS');
         }
 
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+
         return await prisma.$transaction(async (tx) => {
-            const user = await tx.user.createWithHashedPassword(registerDto);
+            const user = await tx.user.createWithHashedPassword({
+                ...registerDto,
+                verification_token: verificationToken,
+                is_verified: false,
+                verified_at: null,
+            });
 
             const defaultProfile = await tx.profile.create({
                 data: {
@@ -31,7 +65,10 @@ export class AuthService {
                 },
             });
 
-            const token = prisma.user.generateToken(user);
+            // 發送驗證郵件
+            await this.emailService.sendVerificationEmail(user.email, verificationToken);
+
+            const token = this.generateToken(user);
 
             return {
                 user,
@@ -60,7 +97,7 @@ export class AuthService {
         }
 
         const { password, ...userWithoutPassword } = user;
-        const token = prisma.user.generateToken(user);
+        const token = this.generateToken(user);
 
         return { user: userWithoutPassword, token };
     }

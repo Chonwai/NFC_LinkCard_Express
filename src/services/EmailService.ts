@@ -23,15 +23,58 @@ export class EmailService {
         // 驗證 SMTP 連接設置
         this.transporter.verify((error, success) => {
             if (error) {
-                console.error('SMTP 連接錯誤:', error);
+                console.error('SMTP connection error:', error);
             } else {
-                console.log('SMTP 伺服器已就緒');
+                console.log('SMTP server is ready');
             }
         });
     }
 
     private async sleep(ms: number) {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async sendVerificationEmail(to: string, verificationToken: string): Promise<void> {
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+            try {
+                const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+                const template = await ejs.renderFile(
+                    path.join(__dirname, '../templates/emails/verify-email.ejs'),
+                    { verificationLink },
+                );
+
+                const mailOptions = {
+                    from: `"NFC LinkCard" <${process.env.GMAIL_USER}>`,
+                    to,
+                    subject: 'Verify Your Email - NFC LinkCard',
+                    html: template,
+                };
+
+                console.log(`Attempting to send email (${attempt}/${this.MAX_RETRIES})`);
+                const info = await this.transporter.sendMail(mailOptions);
+                console.log('Email sent successfully:', info);
+                return;
+            } catch (error: any) {
+                lastError = error;
+                console.error(`Email sending failed (attempt ${attempt}/${this.MAX_RETRIES}):`, {
+                    error: error.message,
+                    code: error.code,
+                    command: error.command,
+                    response: error.response,
+                });
+
+                if (attempt < this.MAX_RETRIES) {
+                    const delay = this.RETRY_DELAY * attempt;
+                    console.log(`Waiting ${delay}ms before retry...`);
+                    await this.sleep(delay);
+                }
+            }
+        }
+
+        throw new Error(`Failed to send email: ${lastError?.message}`);
     }
 
     async sendResetPasswordEmail(to: string, resetToken: string): Promise<void> {

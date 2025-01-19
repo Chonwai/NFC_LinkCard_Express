@@ -153,4 +153,35 @@ export class UserService {
             },
         });
     }
+
+    async findByVerificationToken(token: string) {
+        return await prisma.user.findFirst({
+            where: {
+                verification_token: token,
+                is_verified: false,
+            },
+        });
+    }
+
+    async verifyEmail(userId: string) {
+        return await prisma.user.update({
+            where: { id: userId },
+            data: {
+                is_verified: true,
+                verification_token: null,
+                verified_at: new Date(),
+            },
+            select: {
+                id: true,
+                email: true,
+                username: true,
+                display_name: true,
+                avatar: true,
+                bio: true,
+                is_verified: true,
+                created_at: true,
+                updated_at: true,
+            },
+        });
+    }
 }

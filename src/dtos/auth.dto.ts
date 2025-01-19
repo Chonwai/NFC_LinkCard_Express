@@ -41,3 +41,25 @@ export class ResetPasswordDto {
     })
     newPassword: string;
 }
+
+export class InitialRegisterDto {
+    @IsEmail({}, { message: 'Please enter a valid email address' })
+    email: string;
+
+    @IsString({ message: 'Username must be a string' })
+    @MinLength(3, { message: 'Username must be at least 3 characters long' })
+    username: string;
+
+    @IsString({ message: 'Password must be a string' })
+    @MinLength(8, { message: 'Password must be at least 8 characters long' })
+    @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+        message:
+            'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
+    })
+    password: string;
+}
+
+export class VerifyEmailDto {
+    @IsString({ message: 'Verification token must be a string' })
+    token: string;
+}

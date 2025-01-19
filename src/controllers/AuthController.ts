@@ -24,18 +24,30 @@ export class AuthController {
             const errors = await validate(registerDto);
 
             if (errors.length > 0) {
-                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+                return ApiResponse.error(res, 'Validation error', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const result: any = await this.authService.register(registerDto, res);
-            if (!result.user) return; // 如果已經在 service 層返回了錯誤
-
-            return ApiResponse.success(res, { user: result.user }, 201, {
-                Authorization: `Bearer ${result.token}`,
-            });
+            const result = await this.authService.register(registerDto, res);
+            if ('user' in result) {
+                return ApiResponse.success(
+                    res,
+                    {
+                        message:
+                            'Registration successful. Please check your email to verify your account.',
+                    },
+                    201,
+                );
+            }
+            return result; // 如果是 Response 類型，直接返回
         } catch (error: unknown) {
             const apiError = error as ApiError;
-            return ApiResponse.error(res, '註冊失敗', 'REGISTER_ERROR', apiError.message, 500);
+            return ApiResponse.error(
+                res,
+                'Registration failed',
+                'REGISTER_ERROR',
+                apiError.message,
+                500,
+            );
         }
     };
 
@@ -148,6 +160,52 @@ export class AuthController {
         } catch (error) {
             console.error('Reset password error:', error);
             return ApiResponse.error(res, '重設密碼時發生錯誤', 'RESET_PASSWORD_ERROR', null, 500);
+        }
+    };
+
+    verifyEmail = async (req: Request, res: Response) => {
+        try {
+            const { token } = req.body;
+
+            if (!token) {
+                return ApiResponse.error(
+                    res,
+                    'Verification token is required',
+                    'MISSING_TOKEN',
+                    null,
+                    400,
+                );
+            }
+
+            const user = await this.userService.findByVerificationToken(token);
+            if (!user) {
+                return ApiResponse.error(
+                    res,
+                    'Invalid or expired verification link',
+                    'INVALID_TOKEN',
+                    null,
+                    400,
+                );
+            }
+
+            // 更新用戶的驗證狀態並獲取更新後的用戶信息
+            const verifiedUser = await this.userService.verifyEmail(user.id);
+
+            // 生成 JWT token
+            const jwtToken = await this.authService.generateToken(verifiedUser);
+
+            return ApiResponse.success(res, { user: verifiedUser }, 200, {
+                Authorization: `Bearer ${jwtToken}`,
+            });
+        } catch (error) {
+            console.error('Email verification error:', error);
+            return ApiResponse.error(
+                res,
+                'Email verification failed',
+                'VERIFICATION_ERROR',
+                null,
+                500,
+            );
         }
     };
 }
