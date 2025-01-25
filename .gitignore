@@ -16,3 +16,7 @@ node_modules
 build
 dist
 .vercel
+
+# cursor
+.cursorignore
+/.cursor
