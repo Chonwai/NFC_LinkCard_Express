@@ -61,7 +61,7 @@ export class ProfileService {
             where: { user_id: userId },
             include: {
                 links: {
-                    orderBy: { display_order: 'asc' },
+                    orderBy: [{ display_order: 'asc' }, { created_at: 'desc' }],
                 },
             },
             orderBy: { created_at: 'desc' },

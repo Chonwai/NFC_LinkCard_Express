@@ -101,6 +101,7 @@ export class LinkService {
                     where: {
                         id: link.id,
                         user_id: userId,
+                        profile_id: link.profile_id,
                     },
                     data: {
                         display_order: link.display_order,

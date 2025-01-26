@@ -87,8 +87,12 @@ export class LinkController {
 
     reorder = async (req: Request, res: Response, next: NextFunction) => {
         try {
+            const { profileId } = req.params;
             const reorderLinks = Array.isArray(req.body.links)
-                ? req.body.links.map((link: any) => plainToClass(ReorderLinkDto, link))
+                ? req.body.links.map((link: any) => ({
+                      ...plainToClass(ReorderLinkDto, link),
+                      profile_id: profileId,
+                  }))
                 : [];
             const errors = await validate(reorderLinks);
 
@@ -100,8 +104,8 @@ export class LinkController {
                 return ApiResponse.error(res, '使用者未驗證', 'UNAUTHORIZED', null, 401);
             }
 
-            await this.linkService.reorder(reorderLinks, req.user.id as string);
-            return ApiResponse.success(res, {});
+            const links = await this.linkService.reorder(reorderLinks, req.user.id as string);
+            return ApiResponse.success(res, { links });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(

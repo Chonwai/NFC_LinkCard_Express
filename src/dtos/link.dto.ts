@@ -1,4 +1,13 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsEnum } from 'class-validator';
+import {
+    IsString,
+    IsOptional,
+    IsBoolean,
+    IsNumber,
+    IsEnum,
+    IsUUID,
+    IsInt,
+    Min,
+} from 'class-validator';
 import { LinkType, LinkPlatform } from '@prisma/client';
 import { IsValidLinkUrl } from '../validators/link-url.validator';
 
@@ -75,9 +84,13 @@ export class UpdateLinkDto {
 }
 
 export class ReorderLinkDto {
-    @IsString()
+    @IsUUID()
+    profile_id: string;
+
+    @IsUUID()
     id: string;
 
-    @IsNumber()
+    @IsInt()
+    @Min(1)
     display_order: number;
 }
