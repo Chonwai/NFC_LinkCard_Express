@@ -5,6 +5,7 @@ import { ErrorHandler } from '../utils/ErrorHandler';
 import { Response } from 'express';
 import { FileUploadService } from './FileUploadService';
 import { VercelBlobProvider } from '../storage/vercel-blob.provider';
+import { UpdateLeadCaptureSettingsDto } from '../dtos/lead.dto';
 
 export class ProfileService {
     private fileUploadService: FileUploadService;
@@ -223,5 +224,37 @@ export class ProfileService {
             console.error('檔案封面上傳失敗:', error);
             throw error;
         }
+    }
+
+    async updateLeadCaptureSettings(
+        profileId: string,
+        userId: string,
+        settings: UpdateLeadCaptureSettingsDto,
+        res: Response,
+    ) {
+        const profile = await prisma.profile.findFirst({
+            where: { id: profileId, user_id: userId },
+        });
+
+        if (!profile) {
+            return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
+        }
+
+        return await prisma.profile.update({
+            where: { id: profileId },
+            data: {
+                enable_lead_capture: settings.enabled,
+                lead_capture_fields: settings.fields,
+            },
+            include: {
+                user: {
+                    select: {
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                    },
+                },
+            },
+        });
     }
 }

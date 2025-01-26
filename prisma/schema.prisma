@@ -53,6 +53,9 @@ model Profile {
   updated_at    DateTime @updatedAt @map("updated_at")
   meta          Json?    @default("{}")
   appearance    Json?    @default("{}")
+  enable_lead_capture Boolean @default(false)
+  lead_capture_fields Json?
+  leads Lead[]
 
   @@index([user_id])
   @@map("profiles")
@@ -100,6 +103,24 @@ model Analytics {
   @@index([user_id])
   @@index([link_id])
   @@map("analytics")
+}
+
+model Lead {
+  id            String   @id @default(uuid())
+  profile_id    String   @map("profile_id")
+  profile       Profile   @relation(fields: [profile_id], references: [id])
+  first_name    String
+  last_name     String
+  email         String
+  phone_number  String?
+  company       String?
+  job_title     String?
+  remark        String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@index([profile_id])
+  @@map("leads")
 }
 
 enum LinkType {
