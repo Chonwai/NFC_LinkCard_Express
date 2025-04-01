@@ -1,0 +1,147 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# NFC LinkCard Express 技術堆棧
+
+本文檔詳細說明 NFC LinkCard Express 專案中使用的技術堆棧，包括主要框架、庫、工具及其用途。
+
+## 核心技術
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [Node.js](mdc:https:/nodejs.org) | 18.x LTS | 運行時環境 | 提供 JavaScript 執行環境 |
+| [Express.js](mdc:https:/expressjs.com) | 4.18.x | Web 框架 | 處理 HTTP 請求、路由和中間件 |
+| [TypeScript](mdc:https:/www.typescriptlang.org) | 5.0.x | 編程語言 | 提供靜態類型檢查和更好的開發體驗 |
+| [PostgreSQL](mdc:https:/www.postgresql.org) | 15.x | 數據庫 | 關聯型數據庫，儲存應用數據 |
+
+## ORM 和數據訪問
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [Prisma](mdc:https:/www.prisma.io) | 5.x | ORM | 數據庫模型定義、遷移和查詢 |
+| [TypeDI](mdc:https:/github.com/typestack/typedi) | 0.10.x | 依賴注入 | 提供控制反轉和依賴注入功能 |
+
+## 認證和安全
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [jsonwebtoken](mdc:https:/github.com/auth0/node-jsonwebtoken) | 9.x | JWT 實現 | 生成和驗證 JWT 令牌 |
+| [bcrypt](mdc:https:/github.com/kelektiv/node.bcrypt.js) | 5.x | 密碼加密 | 安全地存儲用戶密碼 |
+| [helmet](mdc:https:/helmetjs.github.io) | 7.x | 安全中間件 | 設置 HTTP 頭以增強安全性 |
+| [cors](mdc:https:/github.com/expressjs/cors) | 2.8.x | CORS 中間件 | 處理跨域資源共享 |
+| [express-rate-limit](mdc:https:/github.com/express-rate-limit/express-rate-limit) | 6.x | 限流中間件 | 防止暴力破解和 DoS 攻擊 |
+
+## 數據驗證和轉換
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [class-validator](mdc:https:/github.com/typestack/class-validator) | 0.14.x | 數據驗證 | 使用裝飾器驗證輸入數據 |
+| [class-transformer](mdc:https:/github.com/typestack/class-transformer) | 0.5.x | 對象轉換 | 轉換普通對象為類實例 |
+
+## 文件存儲
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [Vercel Blob](mdc:https:/vercel.com/docs/storage/vercel-blob) | 最新 | 文件存儲 | 存儲用戶頭像和文件 |
+| [multer](mdc:https:/github.com/expressjs/multer) | 1.4.x | 文件上傳中間件 | 處理 multipart/form-data 請求 |
+
+## 郵件服務
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [Nodemailer](mdc:https:/nodemailer.com) | 6.x | 郵件發送 | 發送驗證郵件和密碼重設郵件 |
+| [email-templates](mdc:https:/github.com/forwardemail/email-templates) | 11.x | 郵件模板 | 管理和渲染郵件模板 |
+
+## 日誌和監控
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [winston](mdc:https:/github.com/winstonjs/winston) | 3.x | 日誌管理 | 記錄應用日誌 |
+| [morgan](mdc:https:/github.com/expressjs/morgan) | 1.10.x | HTTP 日誌中間件 | 記錄 HTTP 請求日誌 |
+
+## 開發工具
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [ESLint](mdc:https:/eslint.org) | 8.x | 代碼檢查 | 執行代碼質量和風格檢查 |
+| [Prettier](mdc:https:/prettier.io) | 3.x | 代碼格式化 | 確保一致的代碼風格 |
+| [Jest](mdc:https:/jestjs.io) | 29.x | 測試框架 | 單元測試和集成測試 |
+| [Supertest](mdc:https:/github.com/ladjs/supertest) | 6.x | API 測試 | 端到端 API 測試 |
+| [Husky](mdc:https:/typicode.github.io/husky) | 8.x | Git 鉤子 | 在 Git 事件時執行腳本 |
+| [lint-staged](mdc:https:/github.com/lint-staged/lint-staged) | 13.x | 增量檢查 | 僅對暫存的文件運行檢查 |
+
+## 部署和運維
+
+| 技術 | 版本 | 用途 | 說明 |
+|------|------|------|------|
+| [Docker](mdc:https:/www.docker.com) | 最新 | 容器化 | 打包應用和依賴 |
+| [Docker Compose](mdc:https:/docs.docker.com/compose) | 最新 | 容器編排 | 管理多容器應用 |
+| [PM2](mdc:https:/pm2.keymetrics.io) | 5.x | 進程管理 | Node.js 應用的生產環境管理 |
+| [dotenv](mdc:https:/github.com/motdotla/dotenv) | 16.x | 環境變量 | 加載環境變量配置 |
+
+## 技術選型理由
+
+1. **Express.js + TypeScript**
+   - Express.js 是輕量級且靈活的 Node.js Web 框架
+   - TypeScript 提供靜態類型檢查，減少錯誤，提高開發效率
+   - 豐富的生態系統和廣泛的社區支持
+
+2. **Prisma ORM**
+   - 提供類型安全的數據庫訪問
+   - 自動生成遷移腳本，減少手動數據庫管理
+   - 直觀的 API 設計，簡化數據庫操作
+
+3. **JWT 認證**
+   - 無狀態認證機制，適合 RESTful API
+   - 易於擴展到微服務架構
+   - 減少服務器存儲壓力
+
+4. **Class-validator 和 Class-transformer**
+   - 基於裝飾器的聲明式驗證
+   - 與 TypeScript 無縫集成
+   - 提供豐富的內置驗證規則
+
+5. **Vercel Blob 存儲**
+   - 容易集成到現代 Web 應用
+   - 自動化 CDN 分發
+   - 按需擴展，無需維護存儲基礎設施
+
+## 依賴關係圖
+
+```
+Express.js
+  ├── TypeDI (依賴注入)
+  ├── Prisma (數據訪問)
+  ├── class-validator + class-transformer (數據驗證)
+  ├── jsonwebtoken + bcrypt (認證與安全)
+  ├── Nodemailer (郵件服務)
+  ├── Vercel Blob (文件存儲)
+  └── winston + morgan (日誌)
+```
+
+## 配置管理
+
+所有配置都通過環境變量管理，遵循 12-Factor App 的原則。關鍵配置項：
+
+- `DATABASE_URL`: PostgreSQL 連接字符串
+- `JWT_SECRET`: JWT 簽名密鑰
+- `BLOB_READ_WRITE_TOKEN`: Vercel Blob 存儲令牌
+- `SMTP_*`: 郵件服務器配置
+- `PORT`: 應用端口
+- `NODE_ENV`: 環境 (development, test, production)
+
+## 擴展性和兼容性
+
+本技術堆棧旨在支持應用的長期發展和擴展：
+
+1. **水平擴展**：無狀態 API 設計允許輕鬆部署多個實例
+2. **微服務準備**：模塊化設計使未來向微服務架構遷移更容易
+3. **向前兼容**：所有庫和框架都選擇了活躍維護且有明確版本路線圖的項目
+
+## 技術債務和限制
+
+1. **Prisma 限制**：某些複雜查詢可能需要原始 SQL
+2. **Node.js 單線程**：CPU 密集型任務應考慮使用工作線程或外部服務
+3. **JWT 安全考慮**：需要實現適當的令牌刷新策略和撤銷機制 
