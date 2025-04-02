@@ -28,11 +28,13 @@ export class MemberService {
     }
 
     async addMember(associationId: string, dto: AddMemberDto) {
+        const { userId, ...memberData } = dto;
+
         return this.prisma.associationMember.create({
             data: {
-                ...dto,
+                ...memberData,
                 association: { connect: { id: associationId } },
-                user: { connect: { id: dto.userId } },
+                user: { connect: { id: userId } },
             },
             include: {
                 user: {
