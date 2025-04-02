@@ -4,6 +4,7 @@ import cors from 'cors';
 import routes from './routes';
 import profileRoutes from './routes/profiles';
 import linkRoutes from './routes/links';
+import associationRoutes from './association/routes';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use(express.json());
 app.use('/api/profiles', profileRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api', routes);
+app.use('/api/association', associationRoutes);
 
 app.listen(3020, () => {
     console.log('Server is running on port 3020');

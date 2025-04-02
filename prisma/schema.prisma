@@ -33,6 +33,8 @@ model User {
   links                Link[]
   profiles             Profile[]
   analytics            Analytics[]
+  association          Association?
+  memberOf             AssociationMember[]
 
   @@map("users")
 }
@@ -143,4 +145,114 @@ enum LinkPlatform {
   PHONE
   EMAIL
   LOCATION
+}
+
+enum MemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum MembershipTier {
+  BASIC
+  PREMIUM
+  EXECUTIVE
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+model Association {
+  id                 String             @id @default(uuid())
+  name               String
+  description        String?
+  logo               String?
+  website            String?
+  email              String?
+  phone              String?
+  address            String?
+  socialLinks        Json?              // 存儲社交媒體連結
+  customization      Json?              // 存儲自定義設置（顏色、字體等）
+  isPublic           Boolean            @default(true)
+  
+  // 關聯
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members            AssociationMember[]
+  leads              AssociationLead[]
+  analytics          AssociationAnalytics[]
+  
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([userId])
+}
+
+model AssociationMember {
+  id                String           @id @default(uuid())
+  
+  // 協會關聯
+  associationId     String
+  association       Association      @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  
+  // 用戶關聯
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role              MemberRole       @default(MEMBER)
+  membershipTier    MembershipTier   @default(BASIC)
+  membershipStatus  MembershipStatus @default(PENDING)
+  
+  displayInDirectory Boolean         @default(true)
+  position          String?          // 在協會中的職位
+  joinDate          DateTime         @default(now())
+  renewalDate       DateTime?        // 會員續費日期
+  
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([associationId, userId])
+  @@index([associationId])
+  @@index([userId])
+}
+
+model AssociationLead {
+  id               String        @id @default(uuid())
+  
+  // 協會關聯
+  associationId    String
+  association      Association   @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  
+  firstName        String
+  lastName         String
+  email            String
+  phone            String?
+  organization     String?
+  message          String?
+  status           String        @default("NEW") // NEW, CONTACTED, CONVERTED, REJECTED
+  
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([associationId])
+  @@index([email])
+}
+
+model AssociationAnalytics {
+  id               String      @id @default(uuid())
+  
+  // 協會關聯
+  associationId    String
+  association      Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  
+  eventType        String      // PAGE_VIEW, MEMBER_VIEW, LEAD_SUBMISSION
+  metadata         Json?       // 額外數據（如引用來源、用戶代理等）
+  
+  createdAt        DateTime    @default(now())
+
+  @@index([associationId])
+  @@index([eventType])
+  @@index([createdAt])
 }
