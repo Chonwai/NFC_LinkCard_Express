@@ -97,4 +97,24 @@ export class MemberController {
             );
         }
     };
+
+    getUserAssociations = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const memberships = await this.memberService.findAssociationsByUserId(userId);
+            return ApiResponse.success(res, { memberships });
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                '獲取用戶協會失敗',
+                'GET_USER_ASSOCIATIONS_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
 }

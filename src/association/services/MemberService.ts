@@ -92,4 +92,20 @@ export class MemberService {
 
         return member?.role === 'ADMIN';
     }
+
+    async findAssociationsByUserId(userId: string) {
+        return this.prisma.associationMember.findMany({
+            where: { userId },
+            include: {
+                association: {
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        logo: true,
+                    },
+                },
+            },
+        });
+    }
 }
