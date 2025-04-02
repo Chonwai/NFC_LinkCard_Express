@@ -100,7 +100,7 @@ export class AffiliationService {
                 position: dto.position || undefined,
                 // 更新metadata
                 meta: {
-                    ...affiliation.meta,
+                    ...(affiliation.meta ? JSON.parse(JSON.stringify(affiliation.meta)) : {}),
                     displayMode: dto.displayMode || undefined,
                     updatedAt: new Date(),
                 },

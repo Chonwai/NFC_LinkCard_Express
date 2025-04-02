@@ -1,9 +1,9 @@
 import { IsString, IsEnum, IsBoolean, IsOptional } from 'class-validator';
 
 export enum AffiliationStatus {
+    APPROVED = 'ACTIVE',
+    REJECTED = 'INACTIVE',
     PENDING = 'PENDING',
-    APPROVED = 'APPROVED',
-    REJECTED = 'REJECTED',
 }
 
 export enum AffiliationDisplayMode {

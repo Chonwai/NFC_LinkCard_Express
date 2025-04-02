@@ -18,13 +18,13 @@ export class AnalyticsService {
      * @param data 事件數據
      * @returns 創建的事件記錄
      */
-    async trackEvent(data: { associationId: string; eventType: string; metadata?: any }) {
+    async trackEvent(data: { associationId: string; eventType: string; meta?: any }) {
         // 記錄分析事件
         return this.prisma.associationAnalytics.create({
             data: {
                 associationId: data.associationId,
                 eventType: data.eventType,
-                metadata: data.metadata || {},
+                meta: data.meta || {},
             },
         });
     }
@@ -76,9 +76,9 @@ export class AnalyticsService {
                 },
             },
             select: {
-                metadata: true,
+                meta: true,
             },
-            distinct: ['metadata'], // 這裡假設metadata中包含訪客IP
+            distinct: ['meta'], // 這裡假設metadata中包含訪客IP
         });
 
         return {

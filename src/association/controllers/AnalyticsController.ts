@@ -18,7 +18,7 @@ export class AnalyticsController {
      */
     trackEvent = async (req: Request, res: Response) => {
         try {
-            const { associationId, eventType, metadata } = req.body;
+            const { associationId, eventType, meta } = req.body;
 
             // 驗證協會是否存在
             const association = await this.associationService.findById(associationId);
@@ -30,8 +30,8 @@ export class AnalyticsController {
             const event = await this.analyticsService.trackEvent({
                 associationId,
                 eventType,
-                metadata: {
-                    ...metadata,
+                meta: {
+                    ...meta,
                     ip: req.ip,
                     userAgent: req.headers['user-agent'],
                     referer: req.headers.referer,
