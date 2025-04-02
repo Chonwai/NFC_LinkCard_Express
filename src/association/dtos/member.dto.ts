@@ -1,5 +1,5 @@
 import { IsString, IsEnum, IsOptional, IsBoolean, IsDate } from 'class-validator';
-import { MemberRole, MembershipTier, MembershipStatus } from '@prisma/client';
+import { MemberRole, MembershipTier, MembershipStatus } from '../types/enums';
 
 export class AddMemberDto {
     @IsString()
