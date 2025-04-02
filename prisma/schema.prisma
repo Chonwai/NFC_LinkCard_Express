@@ -210,6 +210,8 @@ model AssociationMember {
   joinDate           DateTime  @default(now())
   renewalDate        DateTime? // 會員續費日期
 
+  meta Json? @default("{}")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -247,8 +249,8 @@ model AssociationAnalytics {
   associationId String
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
-  eventType String // PAGE_VIEW, MEMBER_VIEW, LEAD_SUBMISSION
-  metadata  Json? // 額外數據（如引用來源、用戶代理等）
+  eventType String
+  meta      Json?
 
   createdAt DateTime @default(now())
 

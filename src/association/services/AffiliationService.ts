@@ -65,8 +65,8 @@ export class AffiliationService {
                 role: 'MEMBER',
                 membershipStatus: 'PENDING',
                 displayInDirectory: dto.displayInUserProfile || true,
-                // 在metadata中存儲附加信息
-                metadata: {
+                // 使用一致的meta命名
+                meta: {
                     requestMessage: dto.message || '',
                     joinRequestDate: new Date(),
                 },
@@ -99,8 +99,8 @@ export class AffiliationService {
                     dto.displayInUserProfile !== undefined ? dto.displayInUserProfile : undefined,
                 position: dto.position || undefined,
                 // 更新metadata
-                metadata: {
-                    ...affiliation.metadata,
+                meta: {
+                    ...affiliation.meta,
                     displayMode: dto.displayMode || undefined,
                     updatedAt: new Date(),
                 },
