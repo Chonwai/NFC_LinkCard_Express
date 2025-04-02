@@ -27,9 +27,11 @@ router.put('/associations/:id/members/:memberId', authMiddleware, memberControll
 router.delete('/associations/:id/members/:memberId', authMiddleware, memberController.removeMember);
 
 // 潛在客戶路由
-router.post('/associations/:id/leads', leadController.createLead);
+router.post('/associations/:id/leads', leadController.createLead); // 公開 API
 router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
+router.get('/associations/:id/leads/:leadId', authMiddleware, leadController.getLeadById);
 router.put('/associations/:id/leads/:leadId', authMiddleware, leadController.updateLead);
+router.delete('/associations/:id/leads/:leadId', authMiddleware, leadController.deleteLead);
 
 // 分析路由
 router.post('/analytics/event', analyticsController.trackEvent);
