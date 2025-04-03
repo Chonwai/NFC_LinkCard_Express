@@ -157,13 +157,13 @@ export class MemberInvitationService {
         const invitationToken = crypto.randomBytes(32).toString('hex');
 
         // 從meta字段獲取邀請信息
-        let userData = {};
+        let userData: { invitations?: any[] } = {};
         try {
             if (user.meta) {
                 userData = user.meta as any;
             }
         } catch (e) {
-            userData = {};
+            userData = { invitations: [] };
         }
 
         // 確保invitations數組存在
@@ -223,13 +223,13 @@ export class MemberInvitationService {
         }
 
         // 解析用戶的meta數據
-        let userData = {};
+        let userData: { invitations?: any[] } = {};
         try {
             if (user.meta) {
                 userData = user.meta as any;
             }
         } catch (e) {
-            throw new Error('無法解析用戶數據');
+            userData = { invitations: [] };
         }
 
         // 檢查邀請是否存在
