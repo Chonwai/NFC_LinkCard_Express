@@ -6,8 +6,13 @@ import { MemberController } from '../controllers/MemberController';
 import { LeadController } from '../controllers/LeadController';
 import { AnalyticsController } from '../controllers/AnalyticsController';
 import { AffiliationController } from '../controllers/AffiliationController';
+import { MemberInvitationController } from '../controllers/MemberInvitationController';
+import multer from 'multer';
 
 const router = Router();
+
+// 設置multer
+const upload = multer({ dest: 'uploads/' });
 
 // 獲取控制器實例
 const associationController = Container.get(AssociationController);
@@ -15,6 +20,7 @@ const memberController = Container.get(MemberController);
 const leadController = Container.get(LeadController);
 const analyticsController = Container.get(AnalyticsController);
 const affiliationController = Container.get(AffiliationController);
+const memberInvitationController = Container.get(MemberInvitationController);
 
 // 協會資料管理路由
 router.post('/associations', authMiddleware, associationController.createAssociation);
@@ -54,5 +60,19 @@ router.put(
 );
 router.get('/user/affiliations', authMiddleware, affiliationController.getUserAffiliations);
 router.get('/users/:userId/affiliations/public', affiliationController.getPublicUserAffiliations);
+
+// 批量邀請路由
+router.post(
+    '/associations/:id/batch-invite',
+    authMiddleware,
+    memberInvitationController.batchInviteMembers,
+);
+
+router.post(
+    '/associations/:id/process-csv',
+    authMiddleware,
+    upload.single('file') as any,
+    memberInvitationController.processCsvUpload,
+);
 
 export default router;
