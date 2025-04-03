@@ -1,6 +1,7 @@
 import { Service } from 'typedi';
-import { PrismaClient, MemberRole, User } from '@prisma/client';
+import { PrismaClient, MemberRole, User, MembershipStatus } from '@prisma/client';
 import { MemberInvitationItemDto, BatchMemberInvitationDto } from '../dtos/member-invitation.dto';
+import { InvitationResponseType } from '../dtos/invitation-response.dto';
 import * as crypto from 'crypto';
 
 @Service()
@@ -131,6 +132,10 @@ export class MemberInvitationService {
                 display_name: memberData.name || null,
                 is_verified: false,
                 verification_token: verificationToken,
+                // 初始化邀請數據
+                meta: {
+                    invitations: [],
+                },
             },
         });
     }
@@ -151,13 +156,23 @@ export class MemberInvitationService {
         // 創建邀請令牌
         const invitationToken = crypto.randomBytes(32).toString('hex');
 
-        // 儲存邀請資訊到用戶的meta字段
-        const userMeta = user.meta || {};
-        if (!userMeta.invitations) {
-            userMeta.invitations = [];
+        // 從meta字段獲取邀請信息
+        let userData = {};
+        try {
+            if (user.meta) {
+                userData = user.meta as any;
+            }
+        } catch (e) {
+            userData = {};
         }
 
-        userMeta.invitations.push({
+        // 確保invitations數組存在
+        if (!userData.invitations) {
+            userData.invitations = [];
+        }
+
+        // 添加新的邀請
+        userData.invitations.push({
             associationId: association.id,
             token: invitationToken,
             role: memberData.role || 'MEMBER',
@@ -168,7 +183,9 @@ export class MemberInvitationService {
         // 更新用戶
         await this.prisma.user.update({
             where: { id: user.id },
-            data: { meta: userMeta },
+            data: {
+                meta: userData,
+            },
         });
 
         // TODO: 發送邀請郵件
@@ -182,5 +199,165 @@ export class MemberInvitationService {
     private async hashPassword(password: string): Promise<string> {
         // 注意：實際項目中應使用bcrypt等安全的哈希算法
         return crypto.createHash('sha256').update(password).digest('hex');
+    }
+
+    /**
+     * 處理邀請回應（接受或拒絕）
+     * @param userId 用戶ID
+     * @param token 邀請令牌
+     * @param responseType 回應類型
+     * @returns 處理結果
+     */
+    async processInvitationResponse(
+        userId: string,
+        token: string,
+        responseType: InvitationResponseType,
+    ) {
+        // 獲取用戶信息
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new Error('用戶不存在');
+        }
+
+        // 解析用戶的meta數據
+        let userData = {};
+        try {
+            if (user.meta) {
+                userData = user.meta as any;
+            }
+        } catch (e) {
+            throw new Error('無法解析用戶數據');
+        }
+
+        // 檢查邀請是否存在
+        if (!userData.invitations || !Array.isArray(userData.invitations)) {
+            throw new Error('未找到邀請記錄');
+        }
+
+        // 查找對應的邀請
+        const invitationIndex = userData.invitations.findIndex((inv: any) => inv.token === token);
+
+        if (invitationIndex === -1) {
+            throw new Error('邀請不存在或已過期');
+        }
+
+        const invitation = userData.invitations[invitationIndex];
+
+        // 檢查邀請是否已過期
+        if (new Date(invitation.expiresAt) < new Date()) {
+            // 移除過期邀請
+            userData.invitations.splice(invitationIndex, 1);
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { meta: userData },
+            });
+            throw new Error('邀請已過期');
+        }
+
+        // 檢查協會是否存在
+        const association = await this.prisma.association.findUnique({
+            where: { id: invitation.associationId },
+        });
+
+        if (!association) {
+            throw new Error('協會不存在');
+        }
+
+        // 處理接受或拒絕邀請
+        if (responseType === InvitationResponseType.ACCEPT) {
+            // 接受邀請 - 創建協會成員記錄
+            await this.prisma.associationMember.create({
+                data: {
+                    associationId: invitation.associationId,
+                    userId: userId,
+                    role: invitation.role as MemberRole,
+                    membershipStatus: MembershipStatus.ACTIVE,
+                    displayInDirectory: true,
+                    meta: {
+                        invitedAt: invitation.createdAt,
+                        acceptedAt: new Date().toISOString(),
+                    },
+                },
+            });
+        }
+
+        // 無論接受或拒絕，都從邀請列表中移除
+        userData.invitations.splice(invitationIndex, 1);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { meta: userData },
+        });
+
+        return {
+            success: true,
+            action: responseType,
+            associationId: invitation.associationId,
+            associationName: association.name,
+        };
+    }
+
+    /**
+     * 獲取用戶的所有協會邀請
+     * @param userId 用戶ID
+     * @returns 邀請列表
+     */
+    async getUserInvitations(userId: string) {
+        // 獲取用戶信息
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new Error('用戶不存在');
+        }
+
+        // 解析用戶的meta數據
+        let invitations = [];
+        try {
+            if (user.meta && (user.meta as any).invitations) {
+                invitations = (user.meta as any).invitations;
+            }
+        } catch (e) {
+            return [];
+        }
+
+        // 過濾有效邀請並加載協會信息
+        const validInvitations = [];
+        for (const invitation of invitations) {
+            // 跳過過期邀請
+            if (new Date(invitation.expiresAt) < new Date()) {
+                continue;
+            }
+
+            // 獲取協會信息
+            try {
+                const association = await this.prisma.association.findUnique({
+                    where: { id: invitation.associationId },
+                    select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        logo: true,
+                    },
+                });
+
+                if (association) {
+                    validInvitations.push({
+                        token: invitation.token,
+                        role: invitation.role,
+                        createdAt: invitation.createdAt,
+                        expiresAt: invitation.expiresAt,
+                        association: association,
+                    });
+                }
+            } catch (e) {
+                // 忽略不存在的協會
+            }
+        }
+
+        return validInvitations;
     }
 }

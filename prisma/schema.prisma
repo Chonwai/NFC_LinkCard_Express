@@ -28,6 +28,7 @@ model User {
   verification_token     String?             @map("verification_token")
   reset_password_token   String?             @map("reset_password_token")
   reset_password_expires DateTime?           @map("reset_password_expires")
+  meta                   Json?               @default("{}")
   created_at             DateTime            @default(now()) @map("created_at")
   updated_at             DateTime            @updatedAt @map("updated_at")
   links                  Link[]
@@ -40,24 +41,25 @@ model User {
 }
 
 model Profile {
-  id                  String   @id @default(uuid())
+  id                  String         @id @default(uuid())
   name                String
-  slug                String   @unique
-  user_id             String   @map("user_id")
-  user                User     @relation(fields: [user_id], references: [id])
+  slug                String         @unique
+  user_id             String         @map("user_id")
+  user                User           @relation(fields: [user_id], references: [id])
   links               Link[]
-  custom_domain       String?  @map("custom_domain")
-  is_public           Boolean  @default(true) @map("is_public")
-  is_default          Boolean  @default(false) @map("is_default")
+  custom_domain       String?        @map("custom_domain")
+  is_public           Boolean        @default(true) @map("is_public")
+  is_default          Boolean        @default(false) @map("is_default")
   description         String?
-  profile_image       String?  @map("profile_image")
-  created_at          DateTime @default(now()) @map("created_at")
-  updated_at          DateTime @updatedAt @map("updated_at")
-  meta                Json?    @default("{}")
-  appearance          Json?    @default("{}")
-  enable_lead_capture Boolean  @default(false)
+  profile_image       String?        @map("profile_image")
+  created_at          DateTime       @default(now()) @map("created_at")
+  updated_at          DateTime       @updatedAt @map("updated_at")
+  meta                Json?          @default("{}")
+  appearance          Json?          @default("{}")
+  enable_lead_capture Boolean        @default(false)
   lead_capture_fields Json?
   leads               Lead[]
+  badges              ProfileBadge[] // 添加徽章關聯
 
   @@index([user_id])
   @@map("profiles")
@@ -176,6 +178,7 @@ model Association {
   socialLinks   Json? // 存儲社交媒體連結
   customization Json? // 存儲自定義設置（顏色、字體等）
   isPublic      Boolean @default(true)
+  badgeImage    String? // 協會徽章圖片URL
 
   // 關聯
   userId    String                 @unique
@@ -183,6 +186,7 @@ model Association {
   members   AssociationMember[]
   leads     AssociationLead[]
   analytics AssociationAnalytics[]
+  badges    ProfileBadge[] // 添加徽章關聯
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -257,4 +261,30 @@ model AssociationAnalytics {
   @@index([associationId])
   @@index([eventType])
   @@index([createdAt])
+}
+
+// 個人檔案徽章模型 - 表示在用戶檔案上顯示的協會徽章
+model ProfileBadge {
+  id String @id @default(uuid())
+
+  // 關聯
+  profileId     String
+  profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  associationId String
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+
+  // 屬性
+  displayOrder Int     @default(0) // 顯示順序
+  isVisible    Boolean @default(true) // 是否顯示
+  customLabel  String? // 自定義標籤
+  customColor  String? // 自定義顏色
+  customSize   String? // 自定義大小 (小、中、大)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, associationId])
+  @@index([profileId])
+  @@index([associationId])
+  @@map("profile_badges")
 }

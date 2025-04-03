@@ -7,6 +7,7 @@ import { LeadController } from '../controllers/LeadController';
 import { AnalyticsController } from '../controllers/AnalyticsController';
 import { AffiliationController } from '../controllers/AffiliationController';
 import { MemberInvitationController } from '../controllers/MemberInvitationController';
+import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
 import multer from 'multer';
 
 const router = Router();
@@ -21,6 +22,7 @@ const leadController = Container.get(LeadController);
 const analyticsController = Container.get(AnalyticsController);
 const affiliationController = Container.get(AffiliationController);
 const memberInvitationController = Container.get(MemberInvitationController);
+const profileBadgeController = Container.get(ProfileBadgeController);
 
 // 協會資料管理路由
 router.post('/associations', authMiddleware, associationController.createAssociation);
@@ -74,5 +76,17 @@ router.post(
     upload.single('file') as any,
     memberInvitationController.processCsvUpload,
 );
+
+// 個人檔案徽章路由
+router.get('/profiles/:id/badges', profileBadgeController.getProfileBadges);
+router.get(
+    '/profiles/:id/available-badges',
+    authMiddleware,
+    profileBadgeController.getAvailableBadges,
+);
+router.post('/profiles/:id/badges', authMiddleware, profileBadgeController.createProfileBadge);
+router.put('/profiles/badges/:id', authMiddleware, profileBadgeController.updateProfileBadge);
+router.put('/profiles/:id/badges', authMiddleware, profileBadgeController.batchUpdateProfileBadges);
+router.delete('/profiles/badges/:id', authMiddleware, profileBadgeController.deleteProfileBadge);
 
 export default router;

@@ -8,6 +8,8 @@ import { BatchMemberInvitationDto, CsvUploadResultDto } from '../dtos/member-inv
 import { AssociationService } from '../services/AssociationService';
 import * as csv from 'csv-parser';
 import * as fs from 'fs';
+import { InvitationResponseDto, InvitationResponseType } from '../dtos/invitation-response.dto';
+import { parseCsv } from '../utils/csv-parser';
 
 @Service()
 export class MemberInvitationController {
@@ -67,60 +69,82 @@ export class MemberInvitationController {
      */
     processCsvUpload = async (req: Request, res: Response) => {
         try {
-            // 此處假設使用了multer中間件處理文件上傳
-            const file = req.file;
-            if (!file) {
-                return ApiResponse.error(res, '未提供CSV文件', 'FILE_REQUIRED', null, 400);
+            if (!req.file) {
+                return ApiResponse.error(res, '未上傳文件', 'NO_FILE_UPLOADED', null, 400);
             }
 
-            // 讀取CSV文件
-            const results: any[] = [];
-            const validEntries: any[] = [];
-            const invalidEntries: any[] = [];
+            const csvData = req.file.buffer.toString('utf8');
+            const result = await parseCsv(csvData);
 
-            // 使用Promise處理CSV解析
-            await new Promise<void>((resolve, reject) => {
-                fs.createReadStream(file.path)
-                    .pipe(csv())
-                    .on('data', (data: any) => results.push(data))
-                    .on('end', () => {
-                        // 驗證每一行數據
-                        results.forEach((row) => {
-                            // 基本驗證：檢查email字段
-                            if (!row.email || !this.isValidEmail(row.email)) {
-                                invalidEntries.push({
-                                    data: row,
-                                    errors: ['無效的電子郵件格式'],
-                                });
-                            } else {
-                                validEntries.push({
-                                    email: row.email,
-                                    name: row.name || '',
-                                    role: this.isValidRole(row.role) ? row.role : 'MEMBER',
-                                });
-                            }
-                        });
-                        resolve();
-                    })
-                    .on('error', reject);
-            });
-
-            // 刪除臨時文件
-            fs.unlinkSync(file.path);
-
-            return ApiResponse.success(res, {
-                validEntries,
-                invalidEntries,
-                total: results.length,
-                valid: validEntries.length,
-                invalid: invalidEntries.length,
-            });
+            return ApiResponse.success(res, result);
         } catch (error: any) {
             return ApiResponse.error(
                 res,
                 '處理CSV文件失敗',
-                'CSV_PROCESSING_ERROR',
+                'CSV_PROCESS_ERROR',
                 error.message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 獲取用戶的所有協會邀請
+     * GET /invitations
+     */
+    getUserInvitations = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const invitations = await this.memberInvitationService.getUserInvitations(userId);
+            return ApiResponse.success(res, { invitations });
+        } catch (error) {
+            console.error('獲取協會邀請失敗:', error);
+            return ApiResponse.error(
+                res,
+                '獲取協會邀請失敗',
+                'GET_INVITATIONS_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 回應協會邀請（接受或拒絕）
+     * POST /invitations/respond
+     */
+    respondToInvitation = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const dto = plainToClass(InvitationResponseDto, req.body);
+            const errors = await validate(dto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            const result = await this.memberInvitationService.processInvitationResponse(
+                userId,
+                dto.token,
+                dto.response,
+            );
+
+            return ApiResponse.success(res, result);
+        } catch (error) {
+            console.error('處理邀請回應失敗:', error);
+            return ApiResponse.error(
+                res,
+                '處理邀請回應失敗',
+                'INVITATION_RESPONSE_ERROR',
+                (error as Error).message,
                 500,
             );
         }
