@@ -58,7 +58,10 @@
     "typescript": "^5.7.2"
   },
   "scripts": {
-    "dev": "nodemon --exec ts-node src/app.ts",
+    "dev": "NODE_ENV=development nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.local",
+    "dev:dev": "NODE_ENV=development nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.development",
+    "dev:staging": "NODE_ENV=staging nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.staging",
+    "dev:prod": "NODE_ENV=production nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.production",
     "build": "prisma generate && tsc",
     "vercel-build": "prisma generate && prisma migrate deploy && tsc",
     "start": "node dist/app.js",
@@ -67,7 +70,15 @@
     "prepare": "husky install",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate:local": "NODE_ENV=local prisma migrate deploy",
+    "prisma:migrate:dev": "NODE_ENV=development prisma migrate deploy",
+    "prisma:migrate:staging": "NODE_ENV=staging prisma migrate deploy",
+    "prisma:migrate:prod": "NODE_ENV=production prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "prisma:studio:local": "NODE_ENV=local prisma studio",
+    "prisma:studio:dev": "NODE_ENV=development prisma studio",
+    "prisma:studio:staging": "NODE_ENV=staging prisma studio",
+    "prisma:studio:prod": "NODE_ENV=production prisma studio",
     "prisma:format": "prisma format",
     "db:push": "prisma db push",
     "db:seed": "ts-node prisma/seed.ts"
