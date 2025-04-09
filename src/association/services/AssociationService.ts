@@ -87,4 +87,33 @@ export class AssociationService {
 
         return association?.userId === userId;
     }
+
+    /**
+     * 檢查用戶是否為協會成員
+     * @param associationId 協會ID
+     * @param userId 用戶ID
+     * @returns 是否為協會成員
+     */
+    async isUserMember(associationId: string, userId: string): Promise<boolean> {
+        // 檢查用戶是否是協會擁有者
+        const association = await this.prisma.association.findUnique({
+            where: { id: associationId },
+        });
+
+        if (association?.userId === userId) {
+            return true;
+        }
+
+        // 檢查用戶是否是協會成員
+        const member = await this.prisma.associationMember.findUnique({
+            where: {
+                associationId_userId: {
+                    associationId,
+                    userId,
+                },
+            },
+        });
+
+        return !!member;
+    }
 }

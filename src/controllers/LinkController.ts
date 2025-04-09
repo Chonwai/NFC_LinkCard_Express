@@ -27,7 +27,7 @@ export class LinkController {
             }
 
             const link = await this.linkService.create(createLinkDto, req.user.id as string, res);
-            return ApiResponse.success(res, { link }, 201);
+            return ApiResponse.success(res, { link });
         } catch (error) {
             next(error);
         }
@@ -72,7 +72,7 @@ export class LinkController {
             }
 
             await this.linkService.delete(req.params.id, req.user.id as string, res);
-            return ApiResponse.success(res, {}, 204);
+            return ApiResponse.success(res, {});
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(

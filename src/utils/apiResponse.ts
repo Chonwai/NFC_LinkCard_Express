@@ -7,8 +7,9 @@ export interface ApiResponseHeaders {
 export class ApiResponse {
     static success(
         res: Response,
-        data: Record<string, unknown>,
-        status = 200,
+        data: any,
+        message?: string,
+        status: number = 200,
         headers?: ApiResponseHeaders,
     ) {
         Object.entries(headers || {}).forEach(([key, value]) => {
@@ -17,11 +18,66 @@ export class ApiResponse {
 
         return res.status(status).json({
             success: true,
+            message,
             data,
         });
     }
 
-    static error(res: Response, message: string, code: string, details: unknown, status = 400) {
+    static created(res: Response, data: any, message?: string, headers?: ApiResponseHeaders) {
+        return this.success(res, data, message, 201, headers);
+    }
+
+    static badRequest(
+        res: Response,
+        message = 'Bad Request',
+        code = 'BAD_REQUEST',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 400);
+    }
+
+    static unauthorized(
+        res: Response,
+        message = 'Unauthorized',
+        code = 'UNAUTHORIZED',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 401);
+    }
+
+    static forbidden(res: Response, message = 'Forbidden', code = 'FORBIDDEN', details?: unknown) {
+        return this.error(res, message, code, details, 403);
+    }
+
+    static notFound(res: Response, message = 'Not Found', code = 'NOT_FOUND', details?: unknown) {
+        return this.error(res, message, code, details, 404);
+    }
+
+    static validationError(
+        res: Response,
+        message = 'Validation Error',
+        code = 'VALIDATION_ERROR',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 422);
+    }
+
+    static serverError(
+        res: Response,
+        message = 'Internal Server Error',
+        code = 'INTERNAL_SERVER_ERROR',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 500);
+    }
+
+    static error(
+        res: Response,
+        message: string,
+        code: string,
+        details: unknown,
+        status: number = 400,
+    ) {
         const response: any = {
             success: false,
             error: {

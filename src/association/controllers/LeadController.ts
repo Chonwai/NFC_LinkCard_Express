@@ -35,17 +35,13 @@ export class LeadController {
             // 創建潛在客戶
             const lead = await this.leadService.createLead(associationId, dto);
 
-            return ApiResponse.success(
-                res,
-                {
-                    message: '您的申請已成功提交，協會將儘快與您聯繫',
-                    lead: {
-                        id: lead.id,
-                        createdAt: lead.createdAt,
-                    },
+            return ApiResponse.success(res, {
+                message: '您的申請已成功提交，協會將儘快與您聯繫',
+                lead: {
+                    id: lead.id,
+                    createdAt: lead.createdAt,
                 },
-                201,
-            );
+            });
         } catch (error: any) {
             return ApiResponse.error(
                 res,

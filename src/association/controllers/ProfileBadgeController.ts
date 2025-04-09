@@ -48,7 +48,7 @@ export class ProfileBadgeController {
             }
 
             const badge = await this.profileBadgeService.createProfileBadge(dto);
-            return ApiResponse.success(res, { badge }, 201);
+            return ApiResponse.success(res, { badge });
         } catch (error) {
             return ApiResponse.error(
                 res,

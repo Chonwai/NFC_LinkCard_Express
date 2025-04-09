@@ -29,14 +29,10 @@ export class AffiliationController {
             // 創建關聯
             const affiliation = await this.affiliationService.createAffiliation(associationId, dto);
 
-            return ApiResponse.success(
-                res,
-                {
-                    message: '關聯請求已發送',
-                    affiliation,
-                },
-                201,
-            );
+            return ApiResponse.success(res, {
+                message: '關聯請求已發送',
+                affiliation,
+            });
         } catch (error: any) {
             return ApiResponse.error(
                 res,

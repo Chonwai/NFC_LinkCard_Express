@@ -371,10 +371,10 @@ export class MemberInvitationService {
         return validInvitations;
     }
 
-    async activateInvitedUser(token: string, password: string, userData?: any) {
+    async activateInvitedUser(activationToken: string, password: string, userData?: any) {
         // 通過驗證令牌查找用戶
         const user = await this.prisma.user.findFirst({
-            where: { verification_token: token },
+            where: { verification_token: activationToken },
         });
 
         if (!user) {

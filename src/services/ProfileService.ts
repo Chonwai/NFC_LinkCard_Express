@@ -6,7 +6,9 @@ import { Response } from 'express';
 import { FileUploadService } from './FileUploadService';
 import { VercelBlobProvider } from '../storage/vercel-blob.provider';
 import { UpdateLeadCaptureSettingsDto } from '../dtos/lead.dto';
+import { Service } from 'typedi';
 
+@Service()
 export class ProfileService {
     private fileUploadService: FileUploadService;
 

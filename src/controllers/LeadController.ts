@@ -24,7 +24,7 @@ export class LeadController {
 
             const { profileId } = req.params;
             const lead = await this.leadService.create(createLeadDto, profileId, res);
-            return ApiResponse.success(res, { lead }, 201);
+            return ApiResponse.success(res, { lead });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(

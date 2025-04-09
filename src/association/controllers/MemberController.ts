@@ -200,7 +200,7 @@ export class MemberController {
             }
 
             const member = await this.memberService.addMember(id, dto);
-            return ApiResponse.success(res, { member }, 201);
+            return ApiResponse.success(res, { member });
         } catch (error: any) {
             return ApiResponse.error(res, '添加會員失敗', 'ADD_MEMBER_ERROR', error.message, 500);
         }

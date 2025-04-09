@@ -5,87 +5,79 @@ import { validate } from 'class-validator';
 import { AssociationService } from '../services/AssociationService';
 import { CreateAssociationDto, UpdateAssociationDto } from '../dtos/association.dto';
 import { ApiResponse } from '../../utils/apiResponse';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, BadgeDisplayMode } from '@prisma/client';
 import { ProfileService } from '../../services/ProfileService';
 import { ProfileBadgeService } from '../services/ProfileBadgeService';
 
 // 注意：請確保在全局 components/schemas 中定義了 CreateAssociationDto, UpdateAssociationDto, Association, AssociationSummary 等 Schema
 // 或者在 DTO 文件中使用 swagger-jsdoc 可識別的方式定義它們。
 
-// 添加 BadgeDisplayMode 枚舉 (以後應移到標準位置)
-enum BadgeDisplayMode {
-    HIDDEN = 'HIDDEN',
-    BADGE_ONLY = 'BADGE_ONLY',
-    FULL = 'FULL',
-}
-
 @Service()
 export class AssociationController {
+    private prisma: PrismaClient;
+
     constructor(
         private associationService: AssociationService,
         private profileService: ProfileService,
         private profileBadgeService: ProfileBadgeService,
-    ) {}
+    ) {
+        this.prisma = new PrismaClient();
+    }
 
     /**
      * @openapi
      * /api/association/associations:
      *   post:
      *     tags:
-     *       - Association
-     *     summary: 創建新協會
-     *     description: 為當前登入的用戶創建一個新的協會記錄。
+     *       - Association Management
+     *     summary: Create a new association
+     *     description: Create a new association and set the creator as the admin
      *     security:
      *       - bearerAuth: []
      *     requestBody:
-     *       description: 創建協會所需的資料
      *       required: true
      *       content:
      *         application/json:
      *           schema:
      *             $ref: '#/components/schemas/CreateAssociationDto'
      *     responses:
-     *       '201':
-     *         description: 協會創建成功。
+     *       201:
+     *         description: Successfully created an association
      *         content:
      *           application/json:
      *             schema:
-     *               $ref: '#/components/schemas/ApiResponseSuccessAssociation' # Define this schema
-     *       '400':
-     *         $ref: '#/components/responses/BadRequest'
-     *       '401':
-     *         $ref: '#/components/responses/Unauthorized'
-     *       '500':
-     *         $ref: '#/components/responses/InternalServerError'
+     *               $ref: '#/components/schemas/ApiResponse'
+     *       400:
+     *         description: Invalid input data
+     *       401:
+     *         description: Unauthorized
+     *       500:
+     *         description: Server error
      */
-    createAssociation = async (req: Request, res: Response) => {
+    async createAssociation(req: Request, res: Response) {
         try {
-            const userId = req.user?.id;
-            if (!userId) {
-                // This check aligns with the security requirement
-                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
-            }
-            const dto = plainToClass(CreateAssociationDto, req.body);
-            const errors = await validate(dto);
+            const createAssociationDto = plainToClass(CreateAssociationDto, req.body);
+            const errors = await validate(createAssociationDto);
 
             if (errors.length > 0) {
-                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+                return ApiResponse.validationError(res, '驗證錯誤', 'VALIDATION_ERROR', errors);
             }
 
-            // Pass userId to service for association creation
-            const association = await this.associationService.create(userId, dto);
-            return ApiResponse.success(res, { association }, 201);
-        } catch (error: any) {
-            // Basic error handling, consider a more robust global handler
-            return ApiResponse.error(
+            const userId = req.user?.id;
+            if (!userId) {
+                return ApiResponse.unauthorized(res, 'User not authenticated');
+            }
+
+            const association = await this.associationService.create(userId, createAssociationDto);
+            return ApiResponse.created(res, association, 'Association created successfully');
+        } catch (error) {
+            console.error('Error creating association:', error);
+            return ApiResponse.serverError(
                 res,
-                error.message || '創建協會失敗',
-                error.code || 'CREATE_ASSOCIATION_ERROR',
-                null,
-                error.status || 500,
+                (error as any).message || 'Failed to create association',
             );
         }
-    };
+    }
 
     /**
      * @openapi
@@ -363,63 +355,53 @@ export class AssociationController {
      *       '500':
      *         $ref: '#/components/responses/InternalServerError'
      */
-    createAssociationProfile = async (req: Request, res: Response) => {
+    async createAssociationProfile(req: Request, res: Response) {
         try {
-            const { id: associationId } = req.params;
+            const associationId = parseInt(req.params.id);
+            if (isNaN(associationId)) {
+                return ApiResponse.badRequest(res, 'Invalid association ID');
+            }
+
             const userId = req.user?.id;
-
             if (!userId) {
-                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+                return ApiResponse.unauthorized(res, 'User not authenticated');
             }
 
-            // 檢查用戶是否為協會成員
-            const isMember = await this.associationService.isUserMember(associationId, userId);
-
-            if (!isMember) {
-                return ApiResponse.error(res, '用戶不是協會成員', 'NOT_MEMBER', null, 403);
-            }
-
-            // 獲取協會信息用於Profile創建
-            const association = await this.prisma.association.findUnique({
-                where: { id: associationId },
-            });
-
-            if (!association) {
-                return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
-            }
-
-            // 創建Profile
-            const profile = await this.profileService.createProfile({
+            // 檢查用戶是否為協會的成員
+            const isMember = await this.associationService.isUserMember(
+                String(associationId),
                 userId,
-                name: `${association.name} - ${req.user?.display_name || 'Member'}`,
-                description: `${req.user?.display_name || 'Member'} at ${association.name}`,
-                isPublic: true,
-                meta: {
-                    associationId,
-                    isAssociationProfile: true,
+            );
+            if (!isMember) {
+                return ApiResponse.forbidden(res, 'You are not a member of this association');
+            }
+
+            // 創建協會的個人資料
+            const profile = await this.profileService.create(
+                {
+                    name: req.body.name,
                 },
-            });
+                userId,
+            );
 
-            // 創建徽章
-            await this.profileBadgeService.createProfileBadge({
-                profileId: profile.id,
-                associationId,
-                title: association.name,
-                description: `Official member of ${association.name}`,
-                imageUrl: association.logo || '',
-                displayMode: BadgeDisplayMode.FULL,
-                position: 0,
-            });
+            // 如果提供了徽章信息，則創建徽章
+            if (req.body.badge) {
+                await this.profileBadgeService.createProfileBadge({
+                    profileId: profile.id,
+                    associationId: String(associationId),
+                    userId: userId,
+                    displayMode: req.body.badge.displayMode || BadgeDisplayMode.BADGE_ONLY,
+                    isVisible: req.body.badge.isEnabled || true,
+                });
+            }
 
-            return ApiResponse.success(res, { profile }, 201);
+            return ApiResponse.success(res, profile, 'Association profile created successfully');
         } catch (error) {
-            return ApiResponse.error(
+            console.error('Error creating association profile:', error);
+            return ApiResponse.serverError(
                 res,
-                '創建協會檔案失敗',
-                'PROFILE_CREATE_ERROR',
-                (error as Error).message,
-                500,
+                (error as any).message || 'Failed to create association profile',
             );
         }
-    };
+    }
 }

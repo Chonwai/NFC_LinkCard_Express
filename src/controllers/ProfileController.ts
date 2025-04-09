@@ -23,7 +23,7 @@ export class ProfileController {
             }
 
             const profile = await this.profileService.create(createProfileDto, req.user!.id);
-            return ApiResponse.success(res, { profile }, 201);
+            return ApiResponse.success(res, { profile });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(
@@ -99,7 +99,7 @@ export class ProfileController {
     delete = async (req: Request, res: Response) => {
         try {
             await this.profileService.delete(req.params.id, req.user!.id, res);
-            return ApiResponse.success(res, {}, 204);
+            return ApiResponse.success(res, {});
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(
