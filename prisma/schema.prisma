@@ -171,6 +171,7 @@ model Association {
   name          String
   description   String?
   logo          String?
+  banner        String? // 協會橫幅圖片URL
   website       String?
   email         String?
   phone         String?

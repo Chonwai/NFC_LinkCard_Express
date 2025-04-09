@@ -3,7 +3,11 @@ import { Request, Response } from 'express';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AssociationService } from '../services/AssociationService';
-import { CreateAssociationDto, UpdateAssociationDto } from '../dtos/association.dto';
+import {
+    CreateAssociationDto,
+    UpdateAssociationDto,
+    CreateFullAssociationDto,
+} from '../dtos/association.dto';
 import { ApiResponse } from '../../utils/apiResponse';
 import { PrismaClient, BadgeDisplayMode } from '@prisma/client';
 import { ProfileService } from '../../services/ProfileService';
@@ -56,7 +60,7 @@ export class AssociationController {
      */
     async createAssociation(req: Request, res: Response) {
         try {
-            const createAssociationDto = plainToClass(CreateAssociationDto, req.body);
+            const createAssociationDto = plainToClass(CreateFullAssociationDto, req.body);
             const errors = await validate(createAssociationDto);
 
             if (errors.length > 0) {
@@ -404,4 +408,186 @@ export class AssociationController {
             );
         }
     }
+
+    /**
+     * @openapi
+     * /api/association/associations/{id}/upload-logo:
+     *   post:
+     *     tags:
+     *       - Association Management
+     *     summary: 上傳協會標誌
+     *     description: 上傳協會的標誌圖片
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - name: id
+     *         in: path
+     *         required: true
+     *         description: 協會ID
+     *         schema:
+     *           type: string
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         multipart/form-data:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               logo:
+     *                 type: string
+     *                 format: binary
+     *                 description: 標誌圖片文件
+     *     responses:
+     *       200:
+     *         description: 上傳成功
+     *       400:
+     *         description: 無效請求
+     *       401:
+     *         description: 未授權
+     *       403:
+     *         description: 禁止訪問
+     *       500:
+     *         description: 服務器錯誤
+     */
+    uploadLogo = async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const canUpdate = await this.associationService.canUserUpdateAssociation(id, userId);
+            if (!canUpdate) {
+                return ApiResponse.error(res, '無權更新協會', 'PERMISSION_DENIED', null, 403);
+            }
+
+            const file = req.file;
+            if (!file) {
+                return ApiResponse.error(res, '缺少文件', 'FILE_MISSING', null, 400);
+            }
+
+            // 檢查文件類型
+            if (!file.mimetype.startsWith('image/')) {
+                return ApiResponse.error(res, '無效的文件類型', 'INVALID_FILE_TYPE', null, 400);
+            }
+
+            // 生成文件名
+            const fileExtension = file.originalname.split('.').pop() || 'jpg';
+            const fileName = `associations/logos/${id}_${Date.now()}.${fileExtension}`;
+
+            // 上傳到Vercel Blob
+            const { put } = await import('@vercel/blob');
+            const { url } = await put(fileName, file.buffer, {
+                access: 'public',
+                contentType: file.mimetype,
+            });
+
+            // 更新協會資料
+            const association = await this.associationService.update(id, { logo: url });
+
+            return ApiResponse.success(res, { logo: url, association });
+        } catch (error: any) {
+            console.error('上傳協會標誌時出錯:', error);
+            return ApiResponse.error(
+                res,
+                error.message || '上傳協會標誌失敗',
+                error.code || 'UPLOAD_LOGO_ERROR',
+                null,
+                error.status || 500,
+            );
+        }
+    };
+
+    /**
+     * @openapi
+     * /api/association/associations/{id}/upload-banner:
+     *   post:
+     *     tags:
+     *       - Association Management
+     *     summary: 上傳協會橫幅
+     *     description: 上傳協會的橫幅圖片
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - name: id
+     *         in: path
+     *         required: true
+     *         description: 協會ID
+     *         schema:
+     *           type: string
+     *     requestBody:
+     *       required: true
+     *       content:
+     *         multipart/form-data:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               banner:
+     *                 type: string
+     *                 format: binary
+     *                 description: 橫幅圖片文件
+     *     responses:
+     *       200:
+     *         description: 上傳成功
+     *       400:
+     *         description: 無效請求
+     *       401:
+     *         description: 未授權
+     *       403:
+     *         description: 禁止訪問
+     *       500:
+     *         description: 服務器錯誤
+     */
+    uploadBanner = async (req: Request, res: Response) => {
+        try {
+            const { id } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const canUpdate = await this.associationService.canUserUpdateAssociation(id, userId);
+            if (!canUpdate) {
+                return ApiResponse.error(res, '無權更新協會', 'PERMISSION_DENIED', null, 403);
+            }
+
+            const file = req.file;
+            if (!file) {
+                return ApiResponse.error(res, '缺少文件', 'FILE_MISSING', null, 400);
+            }
+
+            // 檢查文件類型
+            if (!file.mimetype.startsWith('image/')) {
+                return ApiResponse.error(res, '無效的文件類型', 'INVALID_FILE_TYPE', null, 400);
+            }
+
+            // 生成文件名
+            const fileExtension = file.originalname.split('.').pop() || 'jpg';
+            const fileName = `associations/banners/${id}_${Date.now()}.${fileExtension}`;
+
+            // 上傳到Vercel Blob
+            const { put } = await import('@vercel/blob');
+            const { url } = await put(fileName, file.buffer, {
+                access: 'public',
+                contentType: file.mimetype,
+            });
+
+            // 更新協會資料
+            const association = await this.associationService.update(id, { banner: url });
+
+            return ApiResponse.success(res, { banner: url, association });
+        } catch (error: any) {
+            console.error('上傳協會橫幅時出錯:', error);
+            return ApiResponse.error(
+                res,
+                error.message || '上傳協會橫幅失敗',
+                error.code || 'UPLOAD_BANNER_ERROR',
+                null,
+                error.status || 500,
+            );
+        }
+    };
 }

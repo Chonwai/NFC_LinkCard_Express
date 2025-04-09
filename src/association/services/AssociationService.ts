@@ -1,6 +1,10 @@
 import { Service } from 'typedi';
 import { PrismaClient } from '@prisma/client';
-import { CreateAssociationDto, UpdateAssociationDto } from '../dtos/association.dto';
+import {
+    CreateAssociationDto,
+    UpdateAssociationDto,
+    CreateFullAssociationDto,
+} from '../dtos/association.dto';
 
 @Service()
 export class AssociationService {
@@ -10,7 +14,7 @@ export class AssociationService {
         this.prisma = new PrismaClient();
     }
 
-    async create(userId: string, dto: CreateAssociationDto) {
+    async create(userId: string, dto: CreateFullAssociationDto) {
         // 檢查用戶是否已有協會
         const existingAssociation = await this.prisma.association.findUnique({
             where: { userId },

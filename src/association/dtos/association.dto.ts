@@ -1,8 +1,9 @@
 import { IsString, IsOptional, IsBoolean, IsUrl, IsEmail, IsPhoneNumber } from 'class-validator';
 
 export class CreateAssociationDto {
+    @IsOptional()
     @IsString()
-    name: string;
+    name?: string;
 
     @IsOptional()
     @IsString()
@@ -11,6 +12,10 @@ export class CreateAssociationDto {
     @IsOptional()
     @IsString()
     logo?: string;
+
+    @IsOptional()
+    @IsString()
+    banner?: string;
 
     @IsOptional()
     @IsUrl()
@@ -40,3 +45,8 @@ export class CreateAssociationDto {
 }
 
 export class UpdateAssociationDto extends CreateAssociationDto {}
+
+export class CreateFullAssociationDto extends CreateAssociationDto {
+    @IsString()
+    name: string;
+}

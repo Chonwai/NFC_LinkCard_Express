@@ -32,6 +32,20 @@ router.get('/associations/:id', associationController.getAssociation);
 router.put('/associations/:id', authMiddleware, associationController.updateAssociation);
 router.delete('/associations/:id', authMiddleware, associationController.deleteAssociation);
 
+// 協會圖片上傳路由
+router.post(
+    '/associations/:id/upload-logo',
+    authMiddleware,
+    upload.single('logo') as any,
+    associationController.uploadLogo,
+);
+router.post(
+    '/associations/:id/upload-banner',
+    authMiddleware,
+    upload.single('banner') as any,
+    associationController.uploadBanner,
+);
+
 // 會員目錄路由
 router.get('/associations/:id/members', memberController.getMembers);
 router.post('/associations/:id/members', authMiddleware, memberController.addMember);
