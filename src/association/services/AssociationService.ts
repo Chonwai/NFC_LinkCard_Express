@@ -32,7 +32,7 @@ export class AssociationService {
         return this.prisma.association.create({
             data: {
                 name: dto.name,
-                slug,
+                slug: dto.slug ?? slug,
                 description: dto.description,
                 logo: dto.logo,
                 banner: dto.banner,

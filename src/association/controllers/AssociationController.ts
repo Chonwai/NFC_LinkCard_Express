@@ -58,7 +58,7 @@ export class AssociationController {
      *       500:
      *         description: Server error
      */
-    async createAssociation(req: Request, res: Response) {
+    createAssociation = async (req: Request, res: Response) => {
         try {
             const createAssociationDto = plainToClass(CreateFullAssociationDto, req.body);
             const errors = await validate(createAssociationDto);
@@ -81,7 +81,7 @@ export class AssociationController {
                 (error as any).message || 'Failed to create association',
             );
         }
-    }
+    };
 
     /**
      * @openapi
