@@ -7,6 +7,10 @@ export class CreateAssociationDto {
 
     @IsOptional()
     @IsString()
+    slug?: string;
+
+    @IsOptional()
+    @IsString()
     description?: string;
 
     @IsOptional()

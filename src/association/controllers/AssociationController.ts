@@ -590,4 +590,59 @@ export class AssociationController {
             );
         }
     };
+
+    /**
+     * @openapi
+     * /api/association/associations/by-slug/{slug}:
+     *   get:
+     *     tags:
+     *       - Association
+     *     summary: 通過slug獲取協會詳情
+     *     description: 根據提供的slug檢索特定協會的詳細資訊。公開協會無需驗證，私有協會需要登入。
+     *     parameters:
+     *       - name: slug
+     *         in: path
+     *         required: true
+     *         description: 協會的唯一slug
+     *         schema:
+     *           type: string
+     *     responses:
+     *       '200':
+     *         description: 成功檢索到協會數據。
+     *         content:
+     *           application/json:
+     *             schema:
+     *               $ref: '#/components/schemas/ApiResponseSuccessAssociation'
+     *       '403':
+     *         $ref: '#/components/responses/Forbidden'
+     *       '404':
+     *         $ref: '#/components/responses/NotFound'
+     *       '500':
+     *         $ref: '#/components/responses/InternalServerError'
+     */
+    getAssociationBySlug = async (req: Request, res: Response) => {
+        try {
+            const { slug } = req.params;
+            const association = await this.associationService.findBySlug(slug);
+
+            if (!association) {
+                return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
+            }
+
+            // Permission check for private associations
+            if (!association.isPublic && !req.user) {
+                return ApiResponse.error(res, '無權訪問', 'ACCESS_DENIED', null, 403);
+            }
+
+            return ApiResponse.success(res, { association });
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                error.message || '獲取協會失敗',
+                error.code || 'GET_ASSOCIATION_ERROR',
+                null,
+                error.status || 500,
+            );
+        }
+    };
 }

@@ -28,6 +28,8 @@ const profileBadgeController = Container.get(ProfileBadgeController);
 router.post('/associations', authMiddleware, associationController.createAssociation);
 // 獲取用戶所有協會 (從routes.ts遷移)
 router.get('/associations', authMiddleware, associationController.getUserAssociations);
+// 特定路由必須放在參數路由之前，否則會匹配到:id
+router.get('/associations/by-slug/:slug', associationController.getAssociationBySlug);
 router.get('/associations/:id', associationController.getAssociation);
 router.put('/associations/:id', authMiddleware, associationController.updateAssociation);
 router.delete('/associations/:id', authMiddleware, associationController.deleteAssociation);

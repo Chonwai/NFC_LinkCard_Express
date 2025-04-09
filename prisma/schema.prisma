@@ -169,6 +169,7 @@ enum MembershipStatus {
 model Association {
   id            String  @id @default(uuid())
   name          String
+  slug          String  @unique
   description   String?
   logo          String?
   banner        String? // 協會橫幅圖片URL

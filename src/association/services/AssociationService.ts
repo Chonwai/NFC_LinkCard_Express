@@ -5,6 +5,7 @@ import {
     UpdateAssociationDto,
     CreateFullAssociationDto,
 } from '../dtos/association.dto';
+import { generateAssociationSlug } from '../../utils/slugGenerator';
 
 @Service()
 export class AssociationService {
@@ -24,9 +25,24 @@ export class AssociationService {
             throw new Error('用戶已擁有協會');
         }
 
+        // 生成唯一的slug
+        const slug = await generateAssociationSlug(dto.name);
+
+        // 創建Association記錄
         return this.prisma.association.create({
             data: {
-                ...dto,
+                name: dto.name,
+                slug,
+                description: dto.description,
+                logo: dto.logo,
+                banner: dto.banner,
+                website: dto.website,
+                email: dto.email,
+                phone: dto.phone,
+                address: dto.address,
+                socialLinks: dto.socialLinks,
+                customization: dto.customization,
+                isPublic: dto.isPublic ?? true,
                 user: { connect: { id: userId } },
             },
         });
@@ -47,10 +63,38 @@ export class AssociationService {
         });
     }
 
+    /**
+     * 通過slug查找協會
+     * @param slug 協會的唯一標識符
+     * @returns 協會詳情，包括關聯的用戶信息
+     */
+    async findBySlug(slug: string) {
+        return this.prisma.association.findUnique({
+            where: { slug },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+    }
+
     async update(id: string, dto: UpdateAssociationDto) {
+        // 如果更新包含name但沒有slug，則重新生成slug
+        let updateData = { ...dto };
+        
+        if (dto.name && !dto.slug) {
+            const slug = await generateAssociationSlug(dto.name);
+            updateData = { ...updateData, slug };
+        }
+
         return this.prisma.association.update({
             where: { id },
-            data: dto,
+            data: updateData,
         });
     }
 
