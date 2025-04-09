@@ -86,7 +86,7 @@ export class AssociationService {
     async update(id: string, dto: UpdateAssociationDto) {
         // 如果更新包含name但沒有slug，則重新生成slug
         let updateData = { ...dto };
-        
+
         if (dto.name && !dto.slug) {
             const slug = await generateAssociationSlug(dto.name);
             updateData = { ...updateData, slug };
