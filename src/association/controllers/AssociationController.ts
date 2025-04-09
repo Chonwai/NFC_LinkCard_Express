@@ -69,7 +69,7 @@ export class AssociationController {
             }
 
             const association = await this.associationService.create(userId, createAssociationDto);
-            return ApiResponse.created(res, association, 'Association created successfully');
+            return ApiResponse.created(res, association);
         } catch (error) {
             console.error('Error creating association:', error);
             return ApiResponse.serverError(
@@ -395,7 +395,7 @@ export class AssociationController {
                 });
             }
 
-            return ApiResponse.success(res, profile, 'Association profile created successfully');
+            return ApiResponse.success(res, profile);
         } catch (error) {
             console.error('Error creating association profile:', error);
             return ApiResponse.serverError(

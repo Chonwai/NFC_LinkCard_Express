@@ -29,15 +29,10 @@ export class AuthController {
 
             const result = await this.authService.register(registerDto, res);
             if ('user' in result) {
-                return ApiResponse.success(
-                    res,
-                    {
-                        message:
-                            'Registration successful. Please check your email to verify your account.',
-                    },
-                    'Registration successful',
-                    201,
-                );
+                return ApiResponse.success(res, {
+                    message:
+                        'Registration successful. Please check your email to verify your account.',
+                });
             }
             return result; // 如果是 Response 類型，直接返回
         } catch (error: unknown) {
@@ -61,15 +56,16 @@ export class AuthController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            await this.authService.login(loginDto, res);
+            const result = await this.authService.login(loginDto, res);
 
-            return ApiResponse.success(
-                res,
-                {
-                    message: '登入成功',
-                },
-                '登入成功',
-            );
+            // 如果是錯誤響應，會直接在 authService.login 中處理
+            if (!result || !('user' in result)) return;
+
+            // 將 token 放在 Authorization header 中
+            return ApiResponse.success(res, result.user, 200, {
+                Authorization: `Bearer ${result.token}`,
+                'Access-Control-Expose-Headers': 'Authorization',
+            });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(res, '登入失敗', 'LOGIN_ERROR', apiError.message, 500);
@@ -107,13 +103,9 @@ export class AuthController {
                 // 發送重設密碼郵件
                 await this.emailService.sendResetPasswordEmail(forgotPasswordDto.email, resetToken);
 
-                return ApiResponse.success(
-                    res,
-                    {
-                        message: '重設密碼郵件已發送，請檢查您的電子郵件',
-                    },
-                    '密碼重設郵件已發送',
-                );
+                return ApiResponse.success(res, {
+                    message: '重設密碼郵件已發送，請檢查您的電子郵件',
+                });
             } catch (emailError) {
                 // 如果發送郵件失敗，回滾 token
                 await this.userService.updateResetPasswordToken(user.id, null as any, null as any);
@@ -164,7 +156,7 @@ export class AuthController {
             // 更新密碼
             await this.userService.resetPassword(user.id, resetPasswordDto.newPassword);
 
-            return ApiResponse.success(res, { message: '密碼已成功重設' }, '密碼重設成功');
+            return ApiResponse.success(res, { message: '密碼已成功重設' });
         } catch (error) {
             console.error('Reset password error:', error);
             return ApiResponse.error(res, '重設密碼時發生錯誤', 'RESET_PASSWORD_ERROR', null, 500);
@@ -202,7 +194,7 @@ export class AuthController {
             // 生成 JWT token
             const jwtToken = await this.authService.generateToken(verifiedUser);
 
-            return ApiResponse.success(res, { user: verifiedUser }, '郵箱驗證成功', 200, {
+            return ApiResponse.success(res, { user: verifiedUser }, 200, {
                 Authorization: `Bearer ${jwtToken}`,
             });
         } catch (error) {

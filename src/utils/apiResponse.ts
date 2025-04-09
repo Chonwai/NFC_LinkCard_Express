@@ -5,26 +5,19 @@ export interface ApiResponseHeaders {
 }
 
 export class ApiResponse {
-    static success(
-        res: Response,
-        data: any,
-        message?: string,
-        status: number = 200,
-        headers?: ApiResponseHeaders,
-    ) {
+    static success(res: Response, data: any, status: number = 200, headers?: ApiResponseHeaders) {
         Object.entries(headers || {}).forEach(([key, value]) => {
             res.header(key, value);
         });
 
         return res.status(status).json({
             success: true,
-            message,
             data,
         });
     }
 
-    static created(res: Response, data: any, message?: string, headers?: ApiResponseHeaders) {
-        return this.success(res, data, message, 201, headers);
+    static created(res: Response, data: any, headers?: ApiResponseHeaders) {
+        return this.success(res, data, 201, headers);
     }
 
     static badRequest(
