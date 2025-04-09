@@ -132,6 +132,53 @@ export class EmailService {
         }
     }
 
+    async sendTemplateEmail(
+        to: string,
+        subject: string,
+        templateName: string,
+        data: any,
+    ): Promise<void> {
+        let lastError: Error | null = null;
+
+        for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+            try {
+                // 構建模板完整路徑，確保與sendAssociationInvitation中的templatePath匹配
+                const templatePath = path.join(__dirname, '../templates/emails', templateName);
+
+                // 使用ejs渲染模板，明確處理並指定返回類型
+                const template = (await ejs.renderFile(templatePath, data)) as string;
+
+                const mailOptions = {
+                    from: `"NFC LinkCard" <${process.env.GMAIL_USER}>`,
+                    to,
+                    subject,
+                    html: template, // 現在這是一個字符串類型
+                };
+
+                console.log(`嘗試發送模板郵件 (${attempt}/${this.MAX_RETRIES})`);
+                const info = await this.transporter.sendMail(mailOptions);
+                console.log('模板郵件發送成功:', info);
+                return;
+            } catch (error: any) {
+                lastError = error;
+                console.error(`模板郵件發送失敗 (嘗試 ${attempt}/${this.MAX_RETRIES}):`, {
+                    error: error.message,
+                    code: error.code,
+                    command: error.command,
+                    response: error.response,
+                });
+
+                if (attempt < this.MAX_RETRIES) {
+                    const delay = this.RETRY_DELAY * attempt;
+                    console.log(`等待 ${delay}ms 後重試...`);
+                    await this.sleep(delay);
+                }
+            }
+        }
+
+        throw new Error(`模板郵件發送失敗: ${lastError?.message}`);
+    }
+
     async sendAssociationInvitation(
         email: string,
         associationName: string,

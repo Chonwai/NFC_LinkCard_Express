@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Service } from 'typedi';
 import { ProfileBadgeService } from '../services/ProfileBadgeService';
 import { ApiResponse } from '../../utils/apiResponse';
-import { CreateProfileBadgeDto, UpdateProfileBadgeDto } from '../dto/profile-badge.dto';
+import { CreateProfileBadgeDto, UpdateProfileBadgeDto } from '../dtos/profile-badge.dto';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
 

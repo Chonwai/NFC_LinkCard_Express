@@ -4,7 +4,7 @@ import {
     CreateProfileBadgeDto,
     UpdateProfileBadgeDto,
     ProfileBadgeResponseDto,
-} from '../dto/profile-badge.dto';
+} from '../dtos/profile-badge.dto';
 import { BadgeDisplayMode } from '@prisma/client';
 
 @Service()
@@ -68,12 +68,12 @@ export class ProfileBadgeService {
             data: {
                 profileId: dto.profileId,
                 associationId: dto.associationId,
-                title: dto.title,
-                description: dto.description,
-                imageUrl: dto.imageUrl,
+                displayOrder: dto.displayOrder || 0,
+                isVisible: dto.isVisible === undefined ? true : dto.isVisible,
+                customLabel: dto.customLabel,
+                customColor: dto.customColor,
+                customSize: dto.customSize,
                 displayMode: dto.displayMode || BadgeDisplayMode.FULL,
-                isVerified: true,
-                position: dto.position || 0,
             },
             include: {
                 association: true,
@@ -91,6 +91,7 @@ export class ProfileBadgeService {
             customLabel: badge.customLabel || undefined,
             customColor: badge.customColor || undefined,
             customSize: badge.customSize || undefined,
+            displayMode: badge.displayMode,
             createdAt: badge.createdAt,
             updatedAt: badge.updatedAt,
         };
@@ -122,6 +123,7 @@ export class ProfileBadgeService {
             customLabel: badge.customLabel || undefined,
             customColor: badge.customColor || undefined,
             customSize: badge.customSize || undefined,
+            displayMode: badge.displayMode,
             createdAt: badge.createdAt,
             updatedAt: badge.updatedAt,
         }));
@@ -175,6 +177,7 @@ export class ProfileBadgeService {
                 customLabel: undefined,
                 customColor: undefined,
                 customSize: undefined,
+                displayMode: BadgeDisplayMode.FULL,
                 createdAt: new Date(),
                 updatedAt: new Date(),
             }));
@@ -203,6 +206,7 @@ export class ProfileBadgeService {
                 customLabel: dto.customLabel,
                 customColor: dto.customColor,
                 customSize: dto.customSize,
+                displayMode: dto.displayMode,
             },
             include: {
                 association: true,
@@ -220,6 +224,7 @@ export class ProfileBadgeService {
             customLabel: updatedBadge.customLabel || undefined,
             customColor: updatedBadge.customColor || undefined,
             customSize: updatedBadge.customSize || undefined,
+            displayMode: updatedBadge.displayMode,
             createdAt: updatedBadge.createdAt,
             updatedAt: updatedBadge.updatedAt,
         };
@@ -263,6 +268,8 @@ export class ProfileBadgeService {
                     customColor:
                         dto.customColor !== undefined ? dto.customColor : badge.customColor,
                     customSize: dto.customSize !== undefined ? dto.customSize : badge.customSize,
+                    displayMode:
+                        dto.displayMode !== undefined ? dto.displayMode : badge.displayMode,
                 },
                 include: {
                     association: true,
@@ -284,6 +291,7 @@ export class ProfileBadgeService {
             customLabel: badge.customLabel || undefined,
             customColor: badge.customColor || undefined,
             customSize: badge.customSize || undefined,
+            displayMode: badge.displayMode,
             createdAt: badge.createdAt,
             updatedAt: badge.updatedAt,
         }));

@@ -5,7 +5,7 @@ import { InvitationResponseType } from '../dtos/invitation-response.dto';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
-import { EmailService } from './EmailService';
+import { EmailService } from '../../services/EmailService';
 
 @Service()
 export class MemberInvitationService {

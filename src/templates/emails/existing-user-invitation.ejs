@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邀請您加入協會</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            max-width: 150px;
+            margin-bottom: 20px;
+        }
+        .content {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            display: inline-block;
+            background-color: #4A90E2;
+            color: white;
+            text-decoration: none;
+            padding: 12px 25px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .footer {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://link-card.xyz/logo.png" alt="LinkCard Logo" class="logo">
+        <h1>協會邀請</h1>
+    </div>
+    
+    <div class="content">
+        <h2>您好！</h2>
+        
+        <p>您已被邀請加入 <strong><%= associationName %></strong> 協會。</p>
+        
+        <% if (customMessage) { %>
+        <p><em>"<%= customMessage %>"</em></p>
+        <% } %>
+        
+        <p>作為協會成員，您將：</p>
+        <ul>
+            <li>獲得專屬協會徽章</li>
+            <li>參與協會活動</li>
+            <li>與其他會員聯繫</li>
+        </ul>
+        
+        <p>請點擊以下按鈕回應此邀請：</p>
+        
+        <div style="text-align: center;">
+            <a href="<%= actionUrl %>" class="btn"><%= actionText %></a>
+        </div>
+        
+        <p><small>此邀請將在 <%= expiryDays %> 天後過期。</small></p>
+    </div>
+    
+    <div class="footer">
+        <p>此郵件由 LinkCard 系統自動發送。</p>
+        <p>© <%= new Date().getFullYear() %> LinkCard. 保留所有權利。</p>
+    </div>
+</body>
+</html> 
