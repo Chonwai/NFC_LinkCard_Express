@@ -27,7 +27,7 @@ const profileBadgeController = Container.get(ProfileBadgeController);
 // 協會資料管理路由
 router.post('/associations', authMiddleware, associationController.createAssociation);
 // 獲取用戶所有協會 (從routes.ts遷移)
-router.get('/associations', authMiddleware, associationController.getAssociation);
+router.get('/associations', authMiddleware, associationController.getUserAssociations);
 router.get('/associations/:id', associationController.getAssociation);
 router.put('/associations/:id', authMiddleware, associationController.updateAssociation);
 router.delete('/associations/:id', authMiddleware, associationController.deleteAssociation);

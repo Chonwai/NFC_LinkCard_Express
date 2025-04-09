@@ -15,6 +15,8 @@ app.use(
         origin: [
             'http://127.0.0.1:3005',
             'http://localhost:3005',
+            'http://127.0.0.1:3020',
+            'http://localhost:3020',
             'https://link-card-frontend.vercel.app',
             'http://link-card-frontend.vercel.app',
             'link-card-frontend.vercel.app',

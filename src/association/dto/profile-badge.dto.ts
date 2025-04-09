@@ -9,6 +9,7 @@ import {
     Max,
     Min,
 } from 'class-validator';
+import { BadgeDisplayMode } from '@prisma/client';
 
 export class CreateProfileBadgeDto {
     @IsNotEmpty()
@@ -40,6 +41,10 @@ export class CreateProfileBadgeDto {
     @IsOptional()
     @IsString()
     customSize?: string;
+
+    @IsEnum(BadgeDisplayMode)
+    @IsOptional()
+    displayMode?: BadgeDisplayMode = BadgeDisplayMode.FULL;
 }
 
 export class UpdateProfileBadgeDto {
@@ -64,6 +69,10 @@ export class UpdateProfileBadgeDto {
     @IsOptional()
     @IsString()
     customSize?: string;
+
+    @IsEnum(BadgeDisplayMode)
+    @IsOptional()
+    displayMode?: BadgeDisplayMode;
 }
 
 export class ProfileBadgeResponseDto {

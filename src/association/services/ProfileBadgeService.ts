@@ -5,6 +5,7 @@ import {
     UpdateProfileBadgeDto,
     ProfileBadgeResponseDto,
 } from '../dto/profile-badge.dto';
+import { BadgeDisplayMode } from '@prisma/client';
 
 @Service()
 export class ProfileBadgeService {
@@ -35,17 +36,17 @@ export class ProfileBadgeService {
         }
 
         // 檢查用戶是否為協會成員
-        const isMember = await this.prisma.associationMember.findUnique({
+        const membership = await this.prisma.associationMember.findUnique({
             where: {
                 associationId_userId: {
                     associationId: dto.associationId,
-                    userId: profile.user_id,
+                    userId: dto.userId,
                 },
             },
         });
 
-        if (!isMember) {
-            throw new Error('用戶不是該協會的成員，無法添加徽章');
+        if (!membership) {
+            throw new Error('用戶不是協會成員');
         }
 
         // 檢查徽章是否已存在
@@ -67,11 +68,12 @@ export class ProfileBadgeService {
             data: {
                 profileId: dto.profileId,
                 associationId: dto.associationId,
-                displayOrder: dto.displayOrder || 0,
-                isVisible: dto.isVisible !== undefined ? dto.isVisible : true,
-                customLabel: dto.customLabel,
-                customColor: dto.customColor,
-                customSize: dto.customSize,
+                title: dto.title,
+                description: dto.description,
+                imageUrl: dto.imageUrl,
+                displayMode: dto.displayMode || BadgeDisplayMode.FULL,
+                isVerified: true,
+                position: dto.position || 0,
             },
             include: {
                 association: true,

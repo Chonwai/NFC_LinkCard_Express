@@ -131,4 +131,34 @@ export class EmailService {
             return false;
         }
     }
+
+    async sendAssociationInvitation(
+        email: string,
+        associationName: string,
+        token: string,
+        customMessage?: string,
+        isNewUser: boolean = false,
+    ) {
+        // 準備模板數據
+        const templateData = {
+            associationName,
+            customMessage: customMessage || `您被邀請加入 ${associationName}`,
+            actionUrl: isNewUser
+                ? `${process.env.FRONTEND_URL}/activate?token=${token}`
+                : `${process.env.FRONTEND_URL}/invitations/respond?token=${token}`,
+            actionText: isNewUser ? '激活帳戶並加入' : '回應邀請',
+            expiryDays: isNewUser ? 14 : 7,
+        };
+
+        // 選擇適當的模板
+        const templatePath = isNewUser ? 'new-user-invitation.ejs' : 'existing-user-invitation.ejs';
+
+        // 發送郵件
+        return this.sendTemplateEmail(
+            email,
+            `邀請您加入 ${associationName}`,
+            templatePath,
+            templateData,
+        );
+    }
 }

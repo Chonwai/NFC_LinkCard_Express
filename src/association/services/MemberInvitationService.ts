@@ -3,13 +3,18 @@ import { PrismaClient, MemberRole, User, MembershipStatus } from '@prisma/client
 import { MemberInvitationItemDto, BatchMemberInvitationDto } from '../dtos/member-invitation.dto';
 import { InvitationResponseType } from '../dtos/invitation-response.dto';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
+import * as jwt from 'jsonwebtoken';
+import { EmailService } from './EmailService';
 
 @Service()
 export class MemberInvitationService {
     private prisma: PrismaClient;
+    private emailService: EmailService;
 
-    constructor() {
+    constructor(emailService: EmailService) {
         this.prisma = new PrismaClient();
+        this.emailService = emailService;
     }
 
     /**
@@ -188,9 +193,14 @@ export class MemberInvitationService {
             },
         });
 
-        // TODO: 發送邀請郵件
-        // 此處需要調用郵件服務發送邀請
-        // emailService.sendAssociationInvitation(...)
+        // 發送邀請郵件
+        await this.emailService.sendAssociationInvitation(
+            user.email,
+            association.name,
+            invitationToken,
+            customMessage,
+            !user.is_verified, // 是否為新用戶
+        );
     }
 
     /**
@@ -359,5 +369,150 @@ export class MemberInvitationService {
         }
 
         return validInvitations;
+    }
+
+    async activateInvitedUser(token: string, password: string, userData?: any) {
+        // 通過驗證令牌查找用戶
+        const user = await this.prisma.user.findFirst({
+            where: { verification_token: token },
+        });
+
+        if (!user) {
+            throw new Error('無效的激活令牌');
+        }
+
+        // 檢查令牌是否過期（假設令牌存儲在meta中）
+        const meta = (user.meta as any) || {};
+        if (meta.tokenExpiry && new Date(meta.tokenExpiry) < new Date()) {
+            throw new Error('激活令牌已過期');
+        }
+
+        // 哈希密碼
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 更新用戶資料
+        const updatedUser = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                display_name: userData?.displayName || user.display_name,
+                is_verified: true,
+                verification_token: null,
+                meta: {
+                    ...meta,
+                    tokenExpiry: null,
+                    activatedAt: new Date().toISOString(),
+                },
+            },
+            select: {
+                id: true,
+                email: true,
+                display_name: true,
+                username: true,
+                is_verified: true,
+            },
+        });
+
+        // 查找用戶的協會關係
+        const associations = await this.prisma.associationMember.findMany({
+            where: { userId: user.id },
+            include: { association: true },
+        });
+
+        // 生成JWT令牌
+        const token = this.generateJwtToken(updatedUser);
+
+        return {
+            user: updatedUser,
+            associations: associations.map((m) => m.association),
+            token,
+        };
+    }
+
+    // 生成JWT令牌的輔助方法
+    private generateJwtToken(user: any) {
+        // 引入JWT庫實現
+        return jwt.sign(
+            { id: user.id, email: user.email },
+            process.env.JWT_SECRET || 'default_secret',
+            { expiresIn: '7d' },
+        );
+    }
+
+    /**
+     * 重發邀請
+     * @param associationId 協會ID
+     * @param email 用戶郵箱
+     * @returns 處理結果
+     */
+    async resendInvitation(associationId: string, email: string) {
+        // 檢查協會是否存在
+        const association = await this.prisma.association.findUnique({
+            where: { id: associationId },
+            include: { user: true },
+        });
+
+        if (!association) {
+            throw new Error('協會不存在');
+        }
+
+        // 查找用戶
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+        });
+
+        if (!user) {
+            throw new Error('用戶不存在');
+        }
+
+        // 檢查用戶是否已是協會成員
+        const existingMember = await this.prisma.associationMember.findUnique({
+            where: {
+                associationId_userId: {
+                    associationId,
+                    userId: user.id,
+                },
+            },
+        });
+
+        if (existingMember) {
+            throw new Error('用戶已是協會成員');
+        }
+
+        // 解析用戶的meta數據
+        let userData: { invitations?: any[] } = {};
+        try {
+            if (user.meta) {
+                userData = user.meta as any;
+            }
+        } catch (e) {
+            userData = { invitations: [] };
+        }
+
+        // 確保invitations數組存在
+        if (!userData.invitations) {
+            userData.invitations = [];
+        }
+
+        // 查找並移除現有邀請
+        const invitationIndex = userData.invitations.findIndex(
+            (inv: any) => inv.associationId === associationId,
+        );
+        if (invitationIndex !== -1) {
+            userData.invitations.splice(invitationIndex, 1);
+        }
+
+        // 創建新邀請
+        const memberData: MemberInvitationItemDto = {
+            email,
+            role: MemberRole.MEMBER,
+        };
+        await this.createInvitation(association, user, memberData);
+
+        return {
+            success: true,
+            email,
+            message: '邀請已重新發送',
+        };
     }
 }

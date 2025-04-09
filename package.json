@@ -58,7 +58,7 @@
     "typescript": "^5.7.2"
   },
   "scripts": {
-    "dev": "NODE_ENV=development nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.local",
+    "dev:local": "NODE_ENV=local nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.local",
     "dev:dev": "NODE_ENV=development nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.development",
     "dev:staging": "NODE_ENV=staging nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.staging",
     "dev:prod": "NODE_ENV=production nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.production",

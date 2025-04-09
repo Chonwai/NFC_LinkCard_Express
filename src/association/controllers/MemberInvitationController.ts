@@ -164,4 +164,78 @@ export class MemberInvitationController {
     private isValidRole(role: string): boolean {
         return ['ADMIN', 'MEMBER'].includes(role);
     }
+
+    /**
+     * 激活用戶
+     * @param req 請求
+     * @param res 響應
+     */
+    activateInvitedUser = async (req: Request, res: Response) => {
+        try {
+            const { token } = req.body; // 激活令牌
+            const { password, displayName, acceptTerms } = req.body; // 新用戶資料
+
+            if (!token || !password) {
+                return ApiResponse.error(res, '缺少必要參數', 'MISSING_PARAMS', null, 400);
+            }
+
+            // 調用服務層方法激活用戶
+            const result = await this.memberInvitationService.activateInvitedUser(token, password, {
+                displayName,
+                acceptTerms,
+            });
+
+            return ApiResponse.success(res, {
+                user: result.user,
+                associations: result.associations,
+                token: result.token, // JWT令牌
+            });
+        } catch (error) {
+            return ApiResponse.error(
+                res,
+                '用戶激活失敗',
+                'ACTIVATION_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 重發邀請
+     * @param req 請求
+     * @param res 響應
+     */
+    resendInvitation = async (req: Request, res: Response) => {
+        try {
+            const { associationId, email } = req.body;
+            const userId = req.user?.id;
+
+            // 權限檢查
+            const canManage = await this.associationService.canUserUpdateAssociation(
+                associationId,
+                userId as string,
+            );
+
+            if (!canManage) {
+                return ApiResponse.error(res, '無權管理協會成員', 'PERMISSION_DENIED', null, 403);
+            }
+
+            // 重發邀請
+            const result = await this.memberInvitationService.resendInvitation(
+                associationId,
+                email,
+            );
+
+            return ApiResponse.success(res, { result });
+        } catch (error) {
+            return ApiResponse.error(
+                res,
+                '重發邀請失敗',
+                'RESEND_INVITATION_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
 }
