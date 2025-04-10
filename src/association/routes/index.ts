@@ -62,6 +62,7 @@ router.patch('/members/:id/visibility', authMiddleware, memberController.updateD
 
 // 用戶協會關係 (從routes.ts遷移)
 router.get('/my-associations', authMiddleware, memberController.getUserAssociations);
+router.get('/managed-associations', authMiddleware, memberController.getManagedAssociations);
 
 // 邀請處理路由 (從routes.ts遷移)
 router.get('/invitations', authMiddleware, memberInvitationController.getUserInvitations);

@@ -201,6 +201,33 @@ export class MemberService {
         return [...ownedAssociationsFormatted, ...memberships];
     }
 
+    /**
+     * 獲取用戶管理的協會（擁有者或管理員角色）
+     * @param userId 用戶ID
+     * @returns 用戶作為擁有者或管理員的協會列表
+     */
+    async getManagedAssociations(userId: string) {
+        // 1. 獲取所有協會
+        const allAssociations = await this.getUserAssociations(userId);
+
+        // 2. 過濾出用戶是擁有者或管理員的協會
+        const managedAssociations = allAssociations.filter(
+            (assoc) => assoc.role === 'OWNER' || assoc.role === 'ADMIN',
+        );
+
+        // 3. 對結果進行排序 - 首先是擁有的協會，然後是管理的協會，按名稱字母順序排列
+        managedAssociations.sort((a, b) => {
+            // 首先按角色排序（OWNER在前）
+            if (a.role === 'OWNER' && b.role !== 'OWNER') return -1;
+            if (a.role !== 'OWNER' && b.role === 'OWNER') return 1;
+
+            // 然後按協會名稱排序
+            return a.association.name.localeCompare(b.association.name);
+        });
+
+        return managedAssociations;
+    }
+
     async findByAssociationId(associationId: string) {
         return this.prisma.associationMember.findMany({
             where: { associationId },

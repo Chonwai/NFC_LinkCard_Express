@@ -182,6 +182,31 @@ export class MemberController {
         }
     };
 
+    /**
+     * 獲取當前用戶管理的協會（擁有者或管理員角色）
+     * GET /managed-associations
+     */
+    getManagedAssociations = async (req: Request, res: Response) => {
+        try {
+            const userId = req.user?.id;
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const associations = await this.memberService.getManagedAssociations(userId);
+            return ApiResponse.success(res, { associations });
+        } catch (error) {
+            console.error('獲取用戶管理的協會失敗:', error);
+            return ApiResponse.error(
+                res,
+                '獲取用戶管理的協會失敗',
+                'GET_MANAGED_ASSOCIATIONS_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
+
     addMember = async (req: Request, res: Response) => {
         try {
             const { id } = req.params; // associationId
