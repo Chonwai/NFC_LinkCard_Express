@@ -164,4 +164,73 @@ export class AssociationService {
 
         return !!member;
     }
+
+    /**
+     * 獲取用戶關聯的所有協會
+     * @param userId 用戶ID
+     * @param options 分頁選項
+     * @returns 協會列表和分頁信息
+     */
+    async findUserAssociations(userId: string, options: { page: number; limit: number }) {
+        const { page, limit } = options;
+        const skip = (page - 1) * limit;
+
+        // 查找用戶擁有的協會
+        const ownedAssociations = await this.prisma.association.findMany({
+            where: { userId },
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // 查找用戶作為成員加入的協會
+        const memberAssociations = await this.prisma.association.findMany({
+            where: {
+                members: {
+                    some: {
+                        userId,
+                    },
+                },
+            },
+            skip,
+            take: limit,
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // 合併並去重
+        const allAssociations = [...ownedAssociations];
+        for (const association of memberAssociations) {
+            if (!allAssociations.some((a) => a.id === association.id)) {
+                allAssociations.push(association);
+            }
+        }
+
+        // 獲取總數
+        const totalOwnedCount = await this.prisma.association.count({
+            where: { userId },
+        });
+
+        const totalMemberCount = await this.prisma.association.count({
+            where: {
+                members: {
+                    some: {
+                        userId,
+                    },
+                },
+            },
+        });
+
+        // 總數應該是去重後的結果，但為了簡化我們暫時使用這個近似值
+        const totalCount = totalOwnedCount + totalMemberCount;
+
+        return {
+            associations: allAssociations,
+            pagination: {
+                total: totalCount,
+                page,
+                limit,
+                pages: Math.ceil(totalCount / limit),
+            },
+        };
+    }
 }

@@ -297,9 +297,6 @@ export class AssociationController {
      *       '500':
      *         $ref: '#/components/responses/InternalServerError'
      */
-    // IMPORTANT: This method needs to be implemented correctly.
-    // The corresponding service method `findUserAssociations` must be created in AssociationService.
-    // The route `GET /api/association/associations` in `src/association/routes/index.ts` must point to this method.
     getUserAssociations = async (req: Request, res: Response) => {
         try {
             const userId = req.user?.id;
@@ -310,10 +307,8 @@ export class AssociationController {
             const page = parseInt(req.query.page as string, 10) || 1;
             const limit = parseInt(req.query.limit as string, 10) || 10;
 
-            // Assuming `findUserAssociations` exists or will be created in the service
-            // It should handle fetching associations based on userId and pagination
-            // TODO: Ensure findUserAssociations is implemented in AssociationService
-            const result = await (this.associationService as any).findUserAssociations(userId, {
+            // 使用正確的服務方法
+            const result = await this.associationService.findUserAssociations(userId, {
                 page,
                 limit,
             });
