@@ -21,11 +21,6 @@ export class LeadController {
             const { id: associationId } = req.params;
             const dto = plainToClass(CreateLeadDto, req.body);
 
-            // 添加來源信息（如有）
-            if (req.headers.referer) {
-                dto.source = req.headers.referer;
-            }
-
             // 驗證輸入數據
             const errors = await validate(dto);
             if (errors.length > 0) {

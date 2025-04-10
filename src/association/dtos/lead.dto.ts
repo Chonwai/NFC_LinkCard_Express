@@ -37,11 +37,6 @@ export class CreateLeadDto {
     @IsString()
     @Length(0, 1000, { message: '消息不應超過1000字符' })
     message?: string;
-
-    // 記錄來源
-    @IsOptional()
-    @IsString()
-    source?: string;
 }
 
 export class UpdateLeadDto {
