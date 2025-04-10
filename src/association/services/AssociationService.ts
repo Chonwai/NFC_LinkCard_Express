@@ -92,10 +92,12 @@ export class AssociationService {
             delete updateData.coverImage;
         }
 
-        if (dto.name && !dto.slug) {
-            const slug = await generateAssociationSlug(dto.name);
-            updateData = { ...updateData, slug };
-        }
+        // 移除自動生成slug的邏輯，只有當用戶明確提供slug時才更新
+        // 注意：如果需要更新slug，用戶應該在請求中明確提供slug欄位
+        // if (dto.name && !dto.slug) {
+        //     const slug = await generateAssociationSlug(dto.name);
+        //     updateData = { ...updateData, slug };
+        // }
 
         return this.prisma.association.update({
             where: { id },
