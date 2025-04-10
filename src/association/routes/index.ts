@@ -78,6 +78,7 @@ router.post('/analytics/event', analyticsController.trackEvent);
 router.get('/associations/:id/analytics', authMiddleware, analyticsController.getAnalytics);
 router.get('/associations/:id/analytics/visits', authMiddleware, analyticsController.getVisitStats);
 router.get('/associations/:id/analytics/leads', authMiddleware, analyticsController.getLeadStats);
+router.get('/associations/:id/stats', authMiddleware, analyticsController.getStats);
 
 // 會員關聯路由
 router.post(

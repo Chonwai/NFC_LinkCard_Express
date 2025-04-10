@@ -1,15 +1,21 @@
 // src/association/controllers/AnalyticsController.ts
 import { Service } from 'typedi';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ApiResponse } from '../../utils/apiResponse';
 import { AnalyticsService } from '../services/AnalyticsService';
 import { AssociationService } from '../services/AssociationService';
+import { HttpException } from '../../utils/HttpException';
+import { MemberService } from '../services/MemberService';
+import { PrismaClient } from '@prisma/client';
 
 @Service()
 export class AnalyticsController {
+    private readonly prisma = new PrismaClient();
+
     constructor(
         private readonly analyticsService: AnalyticsService,
         private readonly associationService: AssociationService,
+        private readonly memberService: MemberService,
     ) {}
 
     /**
@@ -144,6 +150,64 @@ export class AnalyticsController {
                 res,
                 '獲取潛在客戶統計失敗',
                 'GET_LEAD_STATS_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * @summary 獲取協會統計數據摘要
+     * @tag Analytics
+     * @param {string} req.params.id - 協會ID
+     * @return {object} 200 - 統計數據摘要響應
+     * @return {object} 400 - 錯誤響應
+     * @return {object} 404 - 協會未找到
+     */
+    getStats = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId } = req.params;
+
+            // 檢查協會是否存在
+            const association = await this.prisma.association.findUnique({
+                where: { id: associationId },
+            });
+
+            if (!association) {
+                return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
+            }
+
+            // 獲取訪問總數
+            const totalVisits = await this.prisma.associationAnalytics.count({
+                where: {
+                    associationId,
+                    eventType: 'PAGE_VIEW',
+                },
+            });
+
+            // 獲取會員總數
+            const totalMembers = await this.prisma.associationMember.count({
+                where: { associationId },
+            });
+
+            // 獲取潛在客戶總數
+            const totalLeads = await this.prisma.associationLead.count({
+                where: { associationId },
+            });
+
+            return ApiResponse.success(res, {
+                stats: {
+                    totalVisits,
+                    totalMembers,
+                    totalLeads,
+                    createdAt: association.createdAt,
+                },
+            });
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                '獲取協會統計數據失敗',
+                'GET_STATS_ERROR',
                 error.message,
                 500,
             );
