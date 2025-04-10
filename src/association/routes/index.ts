@@ -32,6 +32,7 @@ router.get('/associations', authMiddleware, associationController.getUserAssocia
 router.get('/associations/by-slug/:slug', associationController.getAssociationBySlug);
 router.get('/associations/:id', associationController.getAssociation);
 router.put('/associations/:id', authMiddleware, associationController.updateAssociation);
+router.patch('/associations/:id', authMiddleware, associationController.updateAssociation);
 router.delete('/associations/:id', authMiddleware, associationController.deleteAssociation);
 
 // 協會圖片上傳路由

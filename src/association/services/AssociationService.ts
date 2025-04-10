@@ -87,6 +87,11 @@ export class AssociationService {
         // 如果更新包含name但沒有slug，則重新生成slug
         let updateData = { ...dto };
 
+        // 過濾掉不屬於資料庫模型的欄位
+        if ('coverImage' in updateData) {
+            delete updateData.coverImage;
+        }
+
         if (dto.name && !dto.slug) {
             const slug = await generateAssociationSlug(dto.name);
             updateData = { ...updateData, slug };
