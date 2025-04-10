@@ -5,12 +5,17 @@ import { ApiError } from '../types/error.types';
 import { plainToClass } from 'class-transformer';
 import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
 import { validate } from 'class-validator';
+import { MemberService } from '../association/services/MemberService';
+import { Service } from 'typedi';
 
+@Service()
 export class ProfileController {
     private profileService: ProfileService;
+    private memberService: MemberService;
 
     constructor() {
         this.profileService = new ProfileService();
+        this.memberService = new MemberService();
     }
 
     create = async (req: Request, res: Response) => {
@@ -38,8 +43,23 @@ export class ProfileController {
 
     getMyProfiles = async (req: Request, res: Response) => {
         try {
-            const profiles = await this.profileService.findByUserId(req.user!.id);
-            return ApiResponse.success(res, { profiles });
+            const userId = req.user!.id;
+            const profiles = await this.profileService.findByUserId(userId);
+
+            // 檢查用戶是否有管理協會的權限
+            let hasManageableAssociations = false;
+            try {
+                const managedAssociations = await this.memberService.getManagedAssociations(userId);
+                hasManageableAssociations = managedAssociations.length > 0;
+            } catch (error) {
+                console.error('檢查協會管理權限時發生錯誤:', error);
+                // 即使發生錯誤也繼續執行，不影響主要功能
+            }
+
+            return ApiResponse.success(res, {
+                profiles,
+                hasManageableAssociations,
+            });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(
