@@ -167,6 +167,12 @@ export class AnalyticsController {
     getStats = async (req: Request, res: Response) => {
         try {
             const { id: associationId } = req.params;
+            const userId = req.user?.id;
+
+            // 檢查用戶是否已登入
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
 
             // 檢查協會是否存在
             const association = await this.prisma.association.findUnique({
@@ -175,6 +181,15 @@ export class AnalyticsController {
 
             if (!association) {
                 return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
+            }
+
+            // 驗證權限 - 檢查用戶是否為協會管理員或擁有者
+            const canAccess = await this.associationService.canUserUpdateAssociation(
+                associationId,
+                userId as string,
+            );
+            if (!canAccess) {
+                return ApiResponse.error(res, '無權訪問統計數據', 'PERMISSION_DENIED', null, 403);
             }
 
             // 獲取訪問總數
