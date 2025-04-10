@@ -96,6 +96,11 @@ export class MemberController {
         try {
             const memberId = req.params.id;
             const { role } = req.body;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
 
             if (!['ADMIN', 'MEMBER'].includes(role)) {
                 return ApiResponse.error(
@@ -107,8 +112,52 @@ export class MemberController {
                 );
             }
 
-            const member = await this.memberService.updateMemberRole(memberId, role);
-            return ApiResponse.success(res, { member });
+            // 獲取成員所屬的協會
+            const member = await this.memberService.getMemberById(memberId);
+            if (!member) {
+                return ApiResponse.error(res, '會員不存在', 'MEMBER_NOT_FOUND', null, 404);
+            }
+
+            const associationId = member.associationId;
+
+            // 獲取當前用戶在該協會的角色
+            const userRole = await this.memberService.getUserRoleInAssociation(associationId, userId);
+            
+            // 檢查操作權限
+            if (role === 'ADMIN') {
+                // 提升為管理員：需要是協會擁有者或管理員
+                const canPromote = userRole === 'OWNER' || userRole === 'ADMIN';
+                if (!canPromote) {
+                    return ApiResponse.error(
+                        res, 
+                        '無權將會員提升為管理員', 
+                        'PERMISSION_DENIED', 
+                        null, 
+                        403
+                    );
+                }
+            } else if (role === 'MEMBER') {
+                // 降級為普通會員：只有協會擁有者可以降級管理員
+                const currentRole = member.role;
+                
+                // 如果目標會員已經是普通會員，則不需要特殊權限檢查
+                if (currentRole === 'ADMIN') {
+                    // 降級管理員：需要是協會擁有者
+                    if (userRole !== 'OWNER') {
+                        return ApiResponse.error(
+                            res, 
+                            '只有協會擁有者可以將管理員降級', 
+                            'PERMISSION_DENIED', 
+                            null, 
+                            403
+                        );
+                    }
+                }
+            }
+
+            // 執行更新
+            const updatedMember = await this.memberService.updateMemberRole(memberId, role);
+            return ApiResponse.success(res, { member: updatedMember });
         } catch (error) {
             console.error('更新會員角色失敗:', error);
             return ApiResponse.error(

@@ -305,6 +305,65 @@ export class MemberService {
         return member?.role === 'ADMIN';
     }
 
+    /**
+     * 根據ID獲取會員信息
+     * @param memberId 會員ID
+     * @returns 會員信息
+     */
+    async getMemberById(memberId: string) {
+        return this.prisma.associationMember.findUnique({
+            where: { id: memberId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        display_name: true,
+                    },
+                },
+                association: {
+                    select: {
+                        id: true,
+                        name: true,
+                        userId: true, // 獲取協會擁有者ID
+                    },
+                },
+            },
+        });
+    }
+
+    /**
+     * 獲取用戶在協會中的角色
+     * @param associationId 協會ID
+     * @param userId 用戶ID
+     * @returns 用戶角色（OWNER, ADMIN, MEMBER 或 null）
+     */
+    async getUserRoleInAssociation(associationId: string, userId: string) {
+        // 檢查用戶是否是協會擁有者
+        const association = await this.prisma.association.findUnique({
+            where: { id: associationId },
+            select: { userId: true },
+        });
+
+        if (association?.userId === userId) {
+            return 'OWNER';
+        }
+
+        // 檢查用戶是否是協會成員
+        const member = await this.prisma.associationMember.findUnique({
+            where: {
+                associationId_userId: {
+                    associationId,
+                    userId,
+                },
+            },
+            select: { role: true },
+        });
+
+        return member?.role || null;
+    }
+
     async findAssociationsByUserId(userId: string) {
         return this.prisma.associationMember.findMany({
             where: { userId },
