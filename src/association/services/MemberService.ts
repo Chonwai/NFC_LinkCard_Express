@@ -1,5 +1,5 @@
 import { Service } from 'typedi';
-import { PrismaClient, MembershipStatus } from '@prisma/client';
+import { PrismaClient, MembershipStatus, MembershipTier } from '@prisma/client';
 import { AddMemberDto, UpdateMemberDto } from '../dtos/member.dto';
 
 /**
@@ -153,9 +153,10 @@ export class MemberService {
     /**
      * 獲取用戶加入的所有協會
      * @param userId 用戶ID
-     * @returns 協會列表
+     * @returns 協會列表，包括用戶是會員和擁有的協會
      */
     async getUserAssociations(userId: string) {
+        // 查詢用戶作為會員的協會
         const memberships = await this.prisma.associationMember.findMany({
             where: {
                 userId,
@@ -166,7 +167,38 @@ export class MemberService {
             },
         });
 
-        return memberships;
+        // 查詢用戶作為擁有者的協會
+        const ownedAssociations = await this.prisma.association.findMany({
+            where: { userId },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        // 將擁有的協會轉換為與會員協會相同的格式，並設置role為OWNER
+        const ownedAssociationsFormatted = ownedAssociations.map((association) => ({
+            id: `owner-${association.id}`, // 添加前綴避免ID衝突
+            associationId: association.id,
+            userId,
+            role: 'OWNER', // 標記為擁有者
+            membershipTier: 'EXECUTIVE' as MembershipTier, // 使用最高級別
+            membershipStatus: 'ACTIVE' as MembershipStatus,
+            displayInDirectory: true,
+            position: '創始人/擁有者', // 默認職位
+            createdAt: association.createdAt,
+            updatedAt: association.updatedAt,
+            joinDate: association.createdAt,
+            association,
+        }));
+
+        // 合併會員和擁有的協會列表
+        return [...ownedAssociationsFormatted, ...memberships];
     }
 
     async findByAssociationId(associationId: string) {
