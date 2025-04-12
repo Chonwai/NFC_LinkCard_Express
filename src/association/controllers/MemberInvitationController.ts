@@ -238,4 +238,58 @@ export class MemberInvitationController {
             );
         }
     };
+
+    /**
+     * 根據Token獲取邀請詳情
+     * GET /invitations/:token
+     *
+     * @param req 請求
+     * @param res 響應
+     */
+    getInvitationByToken = async (req: Request, res: Response) => {
+        try {
+            const { token } = req.params;
+
+            // 調用服務層方法獲取邀請信息
+            const invitation = await this.memberInvitationService.getInvitationByToken(token);
+
+            // 如果邀請不存在，返回404
+            if (!invitation) {
+                return ApiResponse.error(res, '邀請不存在', 'INVITATION_NOT_FOUND', null, 404);
+            }
+
+            // 檢查邀請是否過期
+            if (new Date(invitation.expiresAt) < new Date()) {
+                return ApiResponse.error(
+                    res,
+                    '邀請已過期',
+                    'INVITATION_EXPIRED',
+                    null,
+                    410, // 使用410 Gone表示資源已過期
+                );
+            }
+
+            // 檢查邀請狀態
+            if (invitation.status !== 'PENDING') {
+                return ApiResponse.error(
+                    res,
+                    '邀請已被處理',
+                    'INVITATION_PROCESSED',
+                    null,
+                    409, // 使用409 Conflict表示資源狀態衝突
+                );
+            }
+
+            return ApiResponse.success(res, { invitation });
+        } catch (error) {
+            console.error('獲取邀請詳情失敗:', error);
+            return ApiResponse.error(
+                res,
+                '獲取邀請詳情失敗',
+                'GET_INVITATION_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
 }

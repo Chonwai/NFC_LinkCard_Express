@@ -62,7 +62,7 @@ export class AuthController {
             if (!result || !('user' in result)) return;
 
             // 將 token 放在 Authorization header 中
-            return ApiResponse.success(res, result.user, 200, {
+            return ApiResponse.success(res, result, 200, {
                 Authorization: `Bearer ${result.token}`,
                 'Access-Control-Expose-Headers': 'Authorization',
             });

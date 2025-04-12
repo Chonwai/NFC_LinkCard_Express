@@ -232,39 +232,21 @@ export class MemberInvitationService {
             throw new Error('用戶不存在');
         }
 
-        // 解析用戶的meta數據
-        let userData: { invitations?: any[] } = {};
-        try {
-            if (user.meta) {
-                userData = user.meta as any;
-            }
-        } catch (e) {
-            userData = { invitations: [] };
-        }
+        // 獲取邀請詳情
+        const invitation = await this.getInvitationByToken(token);
 
-        // 檢查邀請是否存在
-        if (!userData.invitations || !Array.isArray(userData.invitations)) {
-            throw new Error('未找到邀請記錄');
-        }
-
-        // 查找對應的邀請
-        const invitationIndex = userData.invitations.findIndex((inv: any) => inv.token === token);
-
-        if (invitationIndex === -1) {
+        if (!invitation) {
             throw new Error('邀請不存在或已過期');
         }
 
-        const invitation = userData.invitations[invitationIndex];
-
         // 檢查邀請是否已過期
         if (new Date(invitation.expiresAt) < new Date()) {
-            // 移除過期邀請
-            userData.invitations.splice(invitationIndex, 1);
-            await this.prisma.user.update({
-                where: { id: userId },
-                data: { meta: userData },
-            });
             throw new Error('邀請已過期');
+        }
+
+        // 【關鍵安全檢查】驗證邀請郵箱與用戶郵箱是否匹配
+        if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+            throw new Error('您無權處理此邀請，因為它不是發送給您的郵箱');
         }
 
         // 檢查協會是否存在
@@ -276,8 +258,57 @@ export class MemberInvitationService {
             throw new Error('協會不存在');
         }
 
+        // 解析用戶的meta數據
+        let userData: { invitations?: any[] } = {};
+        try {
+            if (user.meta) {
+                userData = user.meta as any;
+            }
+        } catch (e) {
+            userData = { invitations: [] };
+        }
+
+        // 確保invitations數組存在
+        if (!userData.invitations || !Array.isArray(userData.invitations)) {
+            userData.invitations = [];
+        }
+
+        // 查找對應的邀請
+        const invitationIndex = userData.invitations.findIndex((inv: any) => inv.token === token);
+
+        if (invitationIndex === -1) {
+            throw new Error('邀請不存在或已過期');
+        }
+
         // 處理接受或拒絕邀請
         if (responseType === InvitationResponseType.ACCEPT) {
+            // 檢查用戶是否已是協會成員
+            const existingMember = await this.prisma.associationMember.findUnique({
+                where: {
+                    associationId_userId: {
+                        associationId: invitation.associationId,
+                        userId: userId,
+                    },
+                },
+            });
+
+            if (existingMember) {
+                // 用戶已是協會成員，只需更新邀請狀態
+                userData.invitations.splice(invitationIndex, 1);
+                await this.prisma.user.update({
+                    where: { id: userId },
+                    data: { meta: userData },
+                });
+
+                return {
+                    success: true,
+                    action: responseType,
+                    associationId: invitation.associationId,
+                    associationName: association.name,
+                    message: '您已經是此協會的成員',
+                };
+            }
+
             // 接受邀請 - 創建協會成員記錄
             await this.prisma.associationMember.create({
                 data: {
@@ -371,36 +402,86 @@ export class MemberInvitationService {
         return validInvitations;
     }
 
-    async activateInvitedUser(activationToken: string, password: string, userData?: any) {
-        // 通過驗證令牌查找用戶
-        const user = await this.prisma.user.findFirst({
-            where: { verification_token: activationToken },
-        });
+    /**
+     * 激活臨時用戶並接受協會邀請
+     *
+     * @param token 激活令牌
+     * @param password 設置的密碼
+     * @param userData 其他用戶數據
+     * @returns 用戶信息和JWT令牌
+     */
+    async activateInvitedUser(token: string, password: string, userData?: any) {
+        // 獲取邀請信息
+        const invitation = await this.getInvitationByToken(token);
 
-        if (!user) {
+        if (!invitation) {
             throw new Error('無效的激活令牌');
         }
 
-        // 檢查令牌是否過期（假設令牌存儲在meta中）
-        const meta = (user.meta as any) || {};
-        if (meta.tokenExpiry && new Date(meta.tokenExpiry) < new Date()) {
+        // 檢查邀請是否已過期
+        if (new Date(invitation.expiresAt) < new Date()) {
             throw new Error('激活令牌已過期');
+        }
+
+        // 查找用戶
+        const user = await this.prisma.user.findUnique({
+            where: { email: invitation.email },
+        });
+
+        if (!user) {
+            throw new Error('用戶不存在');
+        }
+
+        // 檢查用戶是否已激活
+        if (user.is_verified) {
+            throw new Error('此郵箱已被激活，請直接登入後接受邀請');
         }
 
         // 哈希密碼
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // 解析用戶的meta數據
+        let userMeta: { invitations?: any[] } = {};
+        try {
+            if (user.meta) {
+                userMeta = user.meta as any;
+            }
+        } catch (e) {
+            userMeta = { invitations: [] };
+        }
+
+        // 確保invitations數組存在
+        if (!userMeta.invitations || !Array.isArray(userMeta.invitations)) {
+            userMeta.invitations = [];
+        }
+
+        // 查找對應的邀請
+        const invitationIndex = userMeta.invitations.findIndex((inv: any) => inv.token === token);
+
+        if (invitationIndex === -1) {
+            throw new Error('邀請不存在');
+        }
+
+        // 獲取協會信息
+        const association = await this.prisma.association.findUnique({
+            where: { id: invitation.associationId },
+        });
+
+        if (!association) {
+            throw new Error('協會不存在');
+        }
 
         // 更新用戶資料
         const updatedUser = await this.prisma.user.update({
             where: { id: user.id },
             data: {
                 password: hashedPassword,
-                display_name: userData?.displayName || user.display_name,
+                display_name: userData?.displayName || user.username,
                 is_verified: true,
                 verification_token: null,
                 meta: {
-                    ...meta,
-                    tokenExpiry: null,
+                    ...userMeta,
+                    invitations: userMeta.invitations.filter((inv: any) => inv.token !== token),
                     activatedAt: new Date().toISOString(),
                 },
             },
@@ -413,25 +494,33 @@ export class MemberInvitationService {
             },
         });
 
-        // 查找用戶的協會關係
-        const associations = await this.prisma.associationMember.findMany({
-            where: { userId: user.id },
-            include: { association: true },
+        // 創建協會成員關係
+        await this.prisma.associationMember.create({
+            data: {
+                associationId: invitation.associationId,
+                userId: user.id,
+                role: invitation.role as MemberRole,
+                membershipStatus: MembershipStatus.ACTIVE,
+                displayInDirectory: true,
+                meta: {
+                    invitedAt: invitation.createdAt,
+                    acceptedAt: new Date().toISOString(),
+                },
+            },
         });
 
-        // 生成JWT令牌
-        const token = this.generateJwtToken(updatedUser);
+        // 修改這一行，將 token 改為 jwtToken
+        const jwtToken = this.generateJwtToken(updatedUser);
 
         return {
             user: updatedUser,
-            associations: associations.map((m) => m.association),
-            token,
+            associations: [association],
+            token: jwtToken, // 這裡使用新命名的變量
         };
     }
 
-    // 生成JWT令牌的輔助方法
+    // 新增JWT生成輔助函數
     private generateJwtToken(user: any) {
-        // 引入JWT庫實現
         return jwt.sign(
             { id: user.id, email: user.email },
             process.env.JWT_SECRET || 'default_secret',
@@ -513,6 +602,83 @@ export class MemberInvitationService {
             success: true,
             email,
             message: '邀請已重新發送',
+        };
+    }
+
+    /**
+     * 根據Token獲取邀請詳情
+     *
+     * @param token 邀請令牌
+     * @returns 邀請信息
+     */
+    async getInvitationByToken(token: string) {
+        // 先嘗試從用戶meta數據中查找邀請
+        const user = await this.prisma.user.findFirst({
+            where: {
+                meta: {
+                    path: ['invitations'],
+                    array_contains: [
+                        {
+                            token: token,
+                        },
+                    ],
+                },
+            },
+        });
+
+        if (!user) {
+            return null;
+        }
+
+        // 從用戶meta數據中提取邀請信息
+        let invitation: any = null;
+        try {
+            const userData = user.meta as any;
+            if (userData?.invitations && Array.isArray(userData.invitations)) {
+                invitation = userData.invitations.find((inv: any) => inv.token === token);
+            }
+        } catch (e) {
+            throw new Error('無法解析用戶邀請數據');
+        }
+
+        if (!invitation) {
+            return null;
+        }
+
+        // 獲取關聯的協會信息
+        const association = await this.prisma.association.findUnique({
+            where: { id: invitation.associationId },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                logo: true,
+            },
+        });
+
+        // 檢查此郵箱是否已有激活的帳戶
+        const existingAccount = await this.prisma.user.findUnique({
+            where: {
+                email: user.email,
+                is_verified: true, // 只計算已激活的帳戶
+            },
+        });
+
+        const hasAccount = !!existingAccount;
+
+        // 構建返回的邀請詳情對象
+        return {
+            id: invitation.token,
+            email: user.email,
+            associationId: invitation.associationId,
+            associationName: association?.name || '未知協會',
+            status: 'PENDING',
+            expiresAt: invitation.expiresAt,
+            token: invitation.token,
+            createdAt: invitation.createdAt,
+            role: invitation.role,
+            association,
+            hasAccount, // 新增: 是否已有激活的帳戶
         };
     }
 }

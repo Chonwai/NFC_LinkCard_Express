@@ -228,4 +228,42 @@ export class AnalyticsController {
             );
         }
     };
+
+    /**
+     * 獲取公開的協會統計數據
+     */
+    getPublicStats = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId } = req.params;
+
+            // 檢查協會是否存在
+            const association = await this.prisma.association.findUnique({
+                where: { id: associationId },
+            });
+
+            if (!association) {
+                return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
+            }
+
+            // 獲取訪問總數
+            const totalMembers = await this.prisma.associationMember.count({
+                where: { associationId },
+            });
+
+            return ApiResponse.success(res, {
+                stats: {
+                    totalMembers,
+                    createdAt: association.createdAt,
+                },
+            });
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                '獲取公開的協會統計數據失敗',
+                'GET_PUBLIC_STATS_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
 }

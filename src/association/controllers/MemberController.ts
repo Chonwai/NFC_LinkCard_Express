@@ -69,22 +69,34 @@ export class MemberController {
 
     /**
      * 移除會員
-     * DELETE /associations/members/:id
+     * DELETE /associations/:id/members/:memberId
      */
     removeMember = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
+            if (!memberId) {
+                return ApiResponse.error(res, '缺少會員ID', 'MISSING_MEMBER_ID', null, 400);
+            }
+
             const result = await this.memberService.removeMember(memberId);
             return ApiResponse.success(res, result);
-        } catch (error) {
+        } catch (error: unknown) {
             console.error('移除會員失敗:', error);
-            return ApiResponse.error(
-                res,
-                '移除會員失敗',
-                'REMOVE_MEMBER_ERROR',
-                (error as Error).message,
-                500,
-            );
+
+            // 嘗試將 error 當作符合 ApiError interface 的物件處理
+            const message = (error as any)?.message || '移除會員失敗';
+            const code = (error as any)?.code || 'REMOVE_MEMBER_ERROR';
+            const details = (error as any)?.details;
+            const status = (error as any)?.status || 500;
+
+            // 檢查原始錯誤訊息是否為「會員不存在」
+            if (message === '會員不存在') {
+                // 如果服務層確實拋出了「會員不存在」的錯誤，返回 404
+                return ApiResponse.notFound(res, '會員不存在', 'MEMBER_NOT_FOUND');
+            }
+
+            // 對於其他錯誤，使用提取或默認的信息返回
+            return ApiResponse.error(res, message, code, details, status);
         }
     };
 

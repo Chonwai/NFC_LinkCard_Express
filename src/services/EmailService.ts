@@ -190,9 +190,7 @@ export class EmailService {
         const templateData = {
             associationName,
             customMessage: customMessage || `您被邀請加入 ${associationName}`,
-            actionUrl: isNewUser
-                ? `${process.env.FRONTEND_URL}/activate?token=${token}`
-                : `${process.env.FRONTEND_URL}/invitations/respond?token=${token}`,
+            actionUrl: `${process.env.FRONTEND_URL}/join/${token}`,
             actionText: isNewUser ? '激活帳戶並加入' : '回應邀請',
             expiryDays: isNewUser ? 14 : 7,
         };

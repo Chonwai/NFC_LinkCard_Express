@@ -64,7 +64,9 @@ router.patch('/members/:id/visibility', authMiddleware, memberController.updateD
 router.get('/my-associations', authMiddleware, memberController.getUserAssociations);
 router.get('/managed-associations', authMiddleware, memberController.getManagedAssociations);
 
-// 邀請處理路由 (從routes.ts遷移)
+// 邀請處理路由
+router.get('/invitations/:token', memberInvitationController.getInvitationByToken);
+router.post('/invitations/activate', memberInvitationController.activateInvitedUser);
 router.get('/invitations', authMiddleware, memberInvitationController.getUserInvitations);
 router.post('/invitations/respond', authMiddleware, memberInvitationController.respondToInvitation);
 
@@ -80,7 +82,8 @@ router.post('/analytics/event', analyticsController.trackEvent);
 router.get('/associations/:id/analytics', authMiddleware, analyticsController.getAnalytics);
 router.get('/associations/:id/analytics/visits', authMiddleware, analyticsController.getVisitStats);
 router.get('/associations/:id/analytics/leads', authMiddleware, analyticsController.getLeadStats);
-router.get('/associations/:id/stats', authMiddleware, analyticsController.getStats);
+router.get('/associations/:id/analytics/stats', authMiddleware, analyticsController.getStats);
+router.get('/associations/:id/analytics/public-stats', analyticsController.getPublicStats);
 
 // 會員關聯路由
 router.post(
