@@ -24,7 +24,7 @@ model User {
   avatar                 String?
   bio                    String?
   is_verified            Boolean             @default(false) @map("is_verified")
-  verified_at            DateTime?
+  verified_at            DateTime?           @map("verified_at")
   verification_token     String?             @map("verification_token")
   reset_password_token   String?             @map("reset_password_token")
   reset_password_expires DateTime?           @map("reset_password_expires")
@@ -56,8 +56,8 @@ model Profile {
   updated_at          DateTime       @updatedAt @map("updated_at")
   meta                Json?          @default("{}")
   appearance          Json?          @default("{}")
-  enable_lead_capture Boolean        @default(false)
-  lead_capture_fields Json?
+  enable_lead_capture Boolean        @default(false) @map("enable_lead_capture")
+  lead_capture_fields Json?          @map("lead_capture_fields")
   leads               Lead[]
   badges              ProfileBadge[] // 添加徽章關聯
 
@@ -113,15 +113,15 @@ model Lead {
   id           String   @id @default(uuid())
   profile_id   String   @map("profile_id")
   profile      Profile  @relation(fields: [profile_id], references: [id])
-  first_name   String
-  last_name    String
+  first_name   String   @map("first_name")
+  last_name    String   @map("last_name")
   email        String
-  phone_number String?
+  phone_number String?  @map("phone_number")
   company      String?
-  job_title    String?
+  job_title    String?  @map("job_title")
   remark       String?
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  created_at   DateTime @default(now()) @map("created_at")
+  updated_at   DateTime @updatedAt @map("updated_at")
 
   @@index([profile_id])
   @@map("leads")
@@ -177,92 +177,96 @@ model Association {
   email         String?
   phone         String?
   address       String?
-  socialLinks   Json? // 存儲社交媒體連結
+  socialLinks   Json?   @map("social_links") // 存儲社交媒體連結
   customization Json? // 存儲自定義設置（顏色、字體等）
-  isPublic      Boolean @default(true)
-  badgeImage    String? // 協會徽章圖片URL
+  isPublic      Boolean @default(true) @map("is_public")
+  badgeImage    String? @map("badge_image") // 協會徽章圖片URL
 
   // 關聯
-  userId    String                 @unique
+  userId    String                 @unique @map("user_id")
   user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   members   AssociationMember[]
   leads     AssociationLead[]
   analytics AssociationAnalytics[]
   badges    ProfileBadge[] // 添加徽章關聯
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId])
+  @@map("associations") // Map to snake_case plural
 }
 
 model AssociationMember {
   id String @id @default(uuid())
 
   // 協會關聯
-  associationId String
+  associationId String      @map("association_id")
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
   // 用戶關聯
-  userId String
+  userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   role             MemberRole       @default(MEMBER)
-  membershipTier   MembershipTier   @default(BASIC)
-  membershipStatus MembershipStatus @default(PENDING)
+  membershipTier   MembershipTier   @default(BASIC) @map("membership_tier")
+  membershipStatus MembershipStatus @default(PENDING) @map("membership_status")
 
-  displayInDirectory Boolean   @default(true)
+  displayInDirectory Boolean   @default(true) @map("display_in_directory")
   position           String? // 在協會中的職位
-  joinDate           DateTime  @default(now())
-  renewalDate        DateTime? // 會員續費日期
+  joinDate           DateTime  @default(now()) @map("join_date")
+  renewalDate        DateTime? @map("renewal_date") // 會員續費日期
 
   meta Json? @default("{}")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([associationId, userId])
+  @@unique([associationId, userId], map: "association_members_association_id_user_id_key") // Explicitly map unique constraint name
   @@index([associationId])
   @@index([userId])
+  @@map("association_members") // Map to snake_case plural
 }
 
 model AssociationLead {
   id String @id @default(uuid())
 
   // 協會關聯
-  associationId String
+  associationId String      @map("association_id")
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
-  firstName    String
-  lastName     String
+  firstName    String  @map("first_name")
+  lastName     String  @map("last_name")
   email        String
   phone        String?
   organization String?
   message      String?
   status       String  @default("NEW") // NEW, CONTACTED, CONVERTED, REJECTED
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([associationId])
   @@index([email])
+  @@map("association_leads") // Map to snake_case plural
 }
 
 model AssociationAnalytics {
   id String @id @default(uuid())
 
   // 協會關聯
-  associationId String
+  associationId String      @map("association_id")
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
-  eventType String
+  eventType String @map("event_type")
   meta      Json?
 
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([associationId])
   @@index([eventType])
   @@index([createdAt])
+  @@map("association_analytics") // Map to snake_case plural
 }
 
 // 個人檔案徽章模型 - 表示在用戶檔案上顯示的協會徽章
@@ -270,23 +274,23 @@ model ProfileBadge {
   id String @id @default(uuid())
 
   // 關聯
-  profileId     String
+  profileId     String      @map("profile_id")
   profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  associationId String
+  associationId String      @map("association_id")
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
   // 屬性
-  displayOrder Int     @default(0) // 顯示順序
-  isVisible    Boolean @default(true) // 是否顯示
-  customLabel  String? // 自定義標籤
-  customColor  String? // 自定義顏色
-  customSize   String? // 自定義大小 (小、中、大)
-  displayMode  BadgeDisplayMode @default(FULL)
+  displayOrder Int              @default(0) @map("display_order") // 顯示順序
+  isVisible    Boolean          @default(true) @map("is_visible") // 是否顯示
+  customLabel  String?          @map("custom_label") // 自定義標籤
+  customColor  String?          @map("custom_color") // 自定義顏色
+  customSize   String?          @map("custom_size") // 自定義大小 (小、中、大)
+  displayMode  BadgeDisplayMode @default(FULL) @map("display_mode")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([profileId, associationId])
+  @@unique([profileId, associationId], map: "profile_badges_profile_id_association_id_key") // Explicitly map unique constraint name
   @@index([profileId])
   @@index([associationId])
   @@map("profile_badges")
