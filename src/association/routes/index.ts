@@ -126,4 +126,11 @@ router.put('/profiles/badges/:id', authMiddleware, profileBadgeController.update
 router.put('/profiles/:id/badges', authMiddleware, profileBadgeController.batchUpdateProfileBadges);
 router.delete('/profiles/badges/:id', authMiddleware, profileBadgeController.deleteProfileBadge);
 
+// 新增: 創建協會專屬 Profile 路由
+router.post(
+    '/associations/:id/profiles',
+    authMiddleware,
+    associationController.createAssociationProfile,
+);
+
 export default router;

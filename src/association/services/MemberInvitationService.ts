@@ -6,15 +6,20 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { EmailService } from '../../services/EmailService';
+import { ProfileBadgeService } from './ProfileBadgeService';
+import { BadgeDisplayMode } from '@prisma/client';
+import { CreateProfileBadgeDto } from '../dtos/profile-badge.dto';
 
 @Service()
 export class MemberInvitationService {
     private prisma: PrismaClient;
     private emailService: EmailService;
+    private readonly profileBadgeService: ProfileBadgeService;
 
-    constructor(emailService: EmailService) {
+    constructor(emailService: EmailService, profileBadgeService: ProfileBadgeService) {
         this.prisma = new PrismaClient();
         this.emailService = emailService;
+        this.profileBadgeService = profileBadgeService;
     }
 
     /**
@@ -85,7 +90,13 @@ export class MemberInvitationService {
                 // 處理邀請流程
                 if (user) {
                     // 現有用戶 - 創建邀請
-                    await this.createInvitation(association, user, member, dto.customMessage);
+                    await this.createInvitation(
+                        association,
+                        user,
+                        member,
+                        dto.customMessage,
+                        false,
+                    );
                     result.invited++;
                     result.details.push({
                         email: member.email,
@@ -95,7 +106,13 @@ export class MemberInvitationService {
                 } else {
                     // 新用戶 - 創建臨時帳戶並發送激活邀請
                     const newUser = await this.createTemporaryUser(member);
-                    await this.createInvitation(association, newUser, member, dto.customMessage);
+                    await this.createInvitation(
+                        association,
+                        newUser,
+                        member,
+                        dto.customMessage,
+                        true,
+                    );
                     result.created++;
                     result.details.push({
                         email: member.email,
@@ -122,10 +139,15 @@ export class MemberInvitationService {
      * @returns 創建的用戶
      */
     private async createTemporaryUser(memberData: MemberInvitationItemDto): Promise<User> {
-        // 生成隨機用戶名和密碼
+        // 生成隨機用戶名
         const randomString = crypto.randomBytes(8).toString('hex');
         const username = `user_${randomString}`;
-        const password = await this.hashPassword(crypto.randomBytes(10).toString('hex'));
+
+        // 使用 bcrypt 哈希隨機生成的密碼
+        const temporaryPassword = crypto.randomBytes(12).toString('hex'); // 生成更強的臨時密碼
+        const saltRounds = 10; // bcrypt 加鹽輪數，10 是常用的安全值
+        const hashedPassword = await bcrypt.hash(temporaryPassword, saltRounds); // *** 使用 bcrypt ***
+
         const verificationToken = crypto.randomBytes(32).toString('hex');
 
         // 創建用戶
@@ -133,13 +155,14 @@ export class MemberInvitationService {
             data: {
                 email: memberData.email,
                 username: username,
-                password: password,
+                password: hashedPassword, // 存儲 bcrypt 哈希後的密碼
                 display_name: memberData.name || null,
                 is_verified: false,
                 verification_token: verificationToken,
                 // 初始化邀請數據
                 meta: {
                     invitations: [],
+                    // 可以考慮存儲臨時密碼的哈希，以便將來驗證，但更安全的做法是僅依賴激活鏈接
                 },
             },
         });
@@ -151,12 +174,14 @@ export class MemberInvitationService {
      * @param user 用戶
      * @param memberData 成員數據
      * @param customMessage 自定義消息
+     * @param isBatchCreated 標識是否由批量流程為新用戶創建
      */
     private async createInvitation(
         association: any,
         user: User,
         memberData: MemberInvitationItemDto,
         customMessage?: string,
+        isBatchCreated: boolean = false,
     ) {
         // 創建邀請令牌
         const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -176,13 +201,16 @@ export class MemberInvitationService {
             userData.invitations = [];
         }
 
-        // 添加新的邀請
+        // 添加新的邀請，包含 isBatchCreated 標識
         userData.invitations.push({
             associationId: association.id,
             token: invitationToken,
             role: memberData.role || 'MEMBER',
             createdAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14天有效期
+            expiresAt: new Date(
+                Date.now() + (isBatchCreated ? 14 : 7) * 24 * 60 * 60 * 1000,
+            ).toISOString(), // 批量創建的新用戶有效期14天，已有用戶7天
+            isBatchCreated: isBatchCreated, // *** 存儲標識 ***
         });
 
         // 更新用戶
@@ -201,14 +229,6 @@ export class MemberInvitationService {
             customMessage,
             !user.is_verified, // 是否為新用戶
         );
-    }
-
-    /**
-     * 簡單密碼加密（實際項目應使用bcrypt）
-     */
-    private async hashPassword(password: string): Promise<string> {
-        // 注意：實際項目中應使用bcrypt等安全的哈希算法
-        return crypto.createHash('sha256').update(password).digest('hex');
     }
 
     /**
@@ -437,8 +457,9 @@ export class MemberInvitationService {
             throw new Error('此郵箱已被激活，請直接登入後接受邀請');
         }
 
-        // 哈希密碼
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // 哈希用戶設置的新密碼
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(password, saltRounds); // *** 確認使用 bcrypt ***
 
         // 解析用戶的meta數據
         let userMeta: { invitations?: any[] } = {};
@@ -475,7 +496,7 @@ export class MemberInvitationService {
         const updatedUser = await this.prisma.user.update({
             where: { id: user.id },
             data: {
-                password: hashedPassword,
+                password: hashedPassword, // 更新為用戶設置的、bcrypt 哈希後的密碼
                 display_name: userData?.displayName || user.username,
                 is_verified: true,
                 verification_token: null,
@@ -509,13 +530,92 @@ export class MemberInvitationService {
             },
         });
 
-        // 修改這一行，將 token 改為 jwtToken
+        // --- *** 新增：確保用戶有默認 Profile *** ---
+        let userProfile = await this.prisma.profile.findFirst({
+            where: { user_id: updatedUser.id }, // Check if *any* profile exists for this user
+        });
+
+        // 如果用戶還沒有任何 Profile，為其創建一個默認的
+        if (!userProfile) {
+            try {
+                // 生成一個簡單的唯一 slug
+                const defaultSlug = `${updatedUser.username || 'user'}-${crypto.randomBytes(4).toString('hex')}`;
+
+                userProfile = await this.prisma.profile.create({
+                    data: {
+                        user_id: updatedUser.id,
+                        name: updatedUser.display_name || updatedUser.username || 'My Profile',
+                        slug: defaultSlug,
+                        is_default: true,
+                        is_public: true,
+                        description: `Welcome! This is the default profile for ${updatedUser.display_name || updatedUser.username}.`,
+                        // Ensure other required fields have defaults here
+                    },
+                });
+                console.log(
+                    `Created default profile ${userProfile.id} for newly activated user ${updatedUser.id}`,
+                );
+            } catch (profileCreateError) {
+                console.error(
+                    `[Critical] Failed to create default profile for user ${updatedUser.id} during activation:`,
+                    profileCreateError,
+                );
+                // Consider if error should halt activation
+            }
+        }
+        // --- *** 結束：確保用戶有默認 Profile *** ---
+
+        // --- 查找用戶的默認 Profile (現在應該總能找到了) ---
+        const defaultProfile = await this.prisma.profile.findFirst({
+            where: { user_id: updatedUser.id, is_default: true },
+        });
+
+        // --- 為默認 Profile 添加協會徽章 ---
+        if (defaultProfile) {
+            try {
+                // 檢查徽章是否已存在
+                const existingBadge = await this.prisma.profileBadge.findFirst({
+                    where: {
+                        profileId: defaultProfile.id,
+                        associationId: invitation.associationId,
+                    },
+                });
+
+                if (!existingBadge) {
+                    // *** 修正：調用 createProfileBadge 時使用正確的 DTO 字段 ***
+                    const badgeDto: CreateProfileBadgeDto = {
+                        profileId: defaultProfile.id,
+                        associationId: invitation.associationId,
+                        userId: updatedUser.id,
+                        displayMode: BadgeDisplayMode.FULL, // 使用默認顯示模式
+                        isVisible: true, // 默認可見
+                        displayOrder: 0, // 默認順序
+                        // customLabel, customColor, customSize 可選，此處省略
+                    };
+                    await this.profileBadgeService.createProfileBadge(badgeDto);
+                    console.log(
+                        `Successfully added association badge to default profile ${defaultProfile.id} for user ${updatedUser.id}`,
+                    );
+                }
+            } catch (badgeError) {
+                console.error(
+                    `Error auto-adding badge to default profile ${defaultProfile.id} after activation:`,
+                    badgeError,
+                );
+            }
+        } else {
+            console.warn(
+                `User ${updatedUser.id} still does not have a default profile after creation check. Cannot auto-add association badge.`,
+            );
+        }
+
+        // --- 生成JWT令牌 ---
         const jwtToken = this.generateJwtToken(updatedUser);
 
         return {
             user: updatedUser,
             associations: [association],
-            token: jwtToken, // 這裡使用新命名的變量
+            token: jwtToken,
         };
     }
 
@@ -660,11 +760,13 @@ export class MemberInvitationService {
         const existingAccount = await this.prisma.user.findUnique({
             where: {
                 email: user.email,
-                is_verified: true, // 只計算已激活的帳戶
+                is_verified: true,
             },
         });
-
         const hasAccount = !!existingAccount;
+
+        // *** 提取 isBatchCreated 標識 ***
+        const isBatchCreatedUser = invitation.isBatchCreated === true; // 默認為 false
 
         // 構建返回的邀請詳情對象
         return {
@@ -678,7 +780,8 @@ export class MemberInvitationService {
             createdAt: invitation.createdAt,
             role: invitation.role,
             association,
-            hasAccount, // 新增: 是否已有激活的帳戶
+            hasAccount,
+            isBatchCreatedUser,
         };
     }
 }

@@ -12,6 +12,8 @@ import { ApiResponse } from '../../utils/apiResponse';
 import { PrismaClient, BadgeDisplayMode } from '@prisma/client';
 import { ProfileService } from '../../services/ProfileService';
 import { ProfileBadgeService } from '../services/ProfileBadgeService';
+import { CreateAssociationProfileDto } from '../dtos/association-profile.dto';
+import { CreateProfileDto } from '../../dtos/profile.dto';
 
 // 注意：請確保在全局 components/schemas 中定義了 CreateAssociationDto, UpdateAssociationDto, Association, AssociationSummary 等 Schema
 // 或者在 DTO 文件中使用 swagger-jsdoc 可識別的方式定義它們。
@@ -326,7 +328,7 @@ export class AssociationController {
 
     /**
      * @openapi
-     * /api/association/associations/{id}/profile:
+     * /api/association/associations/{id}/profiles:
      *   post:
      *     tags:
      *       - Association
@@ -354,55 +356,87 @@ export class AssociationController {
      *       '500':
      *         $ref: '#/components/responses/InternalServerError'
      */
-    async createAssociationProfile(req: Request, res: Response) {
+    createAssociationProfile = async (req: Request, res: Response) => {
         try {
-            const associationId = parseInt(req.params.id);
-            if (isNaN(associationId)) {
-                return ApiResponse.badRequest(res, 'Invalid association ID');
-            }
-
+            const { id: associationId } = req.params;
             const userId = req.user?.id;
+
             if (!userId) {
-                return ApiResponse.unauthorized(res, 'User not authenticated');
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
             }
 
-            // 檢查用戶是否為協會的成員
-            const isMember = await this.associationService.isUserMember(
-                String(associationId),
-                userId,
-            );
+            // 驗證請求體 DTO (可以複用或創建新的)
+            const dto = plainToClass(CreateAssociationProfileDto, req.body);
+            const errors = await validate(dto);
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            // 檢查用戶是否為協會成員 (調用現有服務方法)
+            const isMember = await this.associationService.isUserMember(associationId, userId);
             if (!isMember) {
-                return ApiResponse.forbidden(res, 'You are not a member of this association');
+                return ApiResponse.error(res, '用戶不是協會成員', 'NOT_MEMBER', null, 403);
             }
 
-            // 創建協會的個人資料
-            const profile = await this.profileService.create(
-                {
-                    name: req.body.name,
+            // 獲取協會信息用於生成 Profile 默認值
+            const association = await this.associationService.findById(associationId);
+            if (!association) {
+                return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
+            }
+
+            // 獲取用戶信息用於生成 Profile 默認值
+            const user = await this.prisma.user.findUnique({ where: { id: userId } });
+            if (!user) {
+                return ApiResponse.error(res, '用戶不存在', 'USER_NOT_FOUND', null, 404);
+            }
+
+            // --- 創建 Profile ---
+            // 準備傳遞給 ProfileService 的數據
+            const profileData: CreateProfileDto = {
+                // 使用基礎的 CreateProfileDto
+                name: dto.name || `${association.name} - ${user.display_name || user.username}`, // 默認名稱
+                description: dto.description || `Member of ${association.name}`, // 默認描述
+                is_public: dto.isPublic !== undefined ? dto.isPublic : true,
+                // 可以添加一個 meta 字段標識這是協會 Profile
+                meta: {
+                    associationId: associationId,
+                    isAssociationProfile: true,
                 },
-                userId,
-            );
+                // 其他 Profile 必需的字段 (如果有的話)
+            };
 
-            // 如果提供了徽章信息，則創建徽章
-            if (req.body.badge) {
+            // 調用 ProfileService 的 'create' 方法
+            const newProfile = await this.profileService.create(profileData, userId);
+
+            // --- 自動添加協會徽章到新 Profile ---
+            // 使用 ProfileBadgeService 添加徽章
+            try {
                 await this.profileBadgeService.createProfileBadge({
-                    profileId: profile.id,
-                    associationId: String(associationId),
-                    userId: userId,
-                    displayMode: req.body.badge.displayMode || BadgeDisplayMode.BADGE_ONLY,
-                    isVisible: req.body.badge.isEnabled || true,
+                    profileId: newProfile.id,
+                    associationId: associationId,
+                    userId: userId, // 確保傳遞 userId
+                    displayMode: BadgeDisplayMode.FULL, // 默認顯示模式 (如果實現了)
                 });
+            } catch (badgeError) {
+                // 即使徽章創建失敗，Profile 也已創建，記錄錯誤但繼續
+                console.error(
+                    `Failed to add badge to new profile ${newProfile.id} for association ${associationId}:`,
+                    badgeError,
+                );
             }
 
-            return ApiResponse.success(res, profile);
-        } catch (error) {
-            console.error('Error creating association profile:', error);
-            return ApiResponse.serverError(
+            return ApiResponse.success(res, { profile: newProfile }, 201);
+        } catch (error: any) {
+            console.error('創建協會 Profile 失敗:', error);
+            return ApiResponse.error(
                 res,
-                (error as any).message || 'Failed to create association profile',
+                '創建協會 Profile 失敗',
+                'CREATE_ASSOC_PROFILE_ERROR',
+                error.message,
+                500,
             );
         }
-    }
+    };
 
     /**
      * @openapi
