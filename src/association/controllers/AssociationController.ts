@@ -14,6 +14,7 @@ import { ProfileService } from '../../services/ProfileService';
 import { ProfileBadgeService } from '../services/ProfileBadgeService';
 import { CreateAssociationProfileDto } from '../dtos/association-profile.dto';
 import { CreateProfileDto } from '../../dtos/profile.dto';
+import { generateRandomChars } from '../../utils/token';
 
 // 注意：請確保在全局 components/schemas 中定義了 CreateAssociationDto, UpdateAssociationDto, Association, AssociationSummary 等 Schema
 // 或者在 DTO 文件中使用 swagger-jsdoc 可識別的方式定義它們。
@@ -397,6 +398,7 @@ export class AssociationController {
                 name: dto.name || `${association.name} - ${user.display_name || user.username}`, // 默認名稱
                 description: dto.description || `Member of ${association.name}`, // 默認描述
                 is_public: dto.isPublic !== undefined ? dto.isPublic : true,
+                slug: `${association.slug}-${generateRandomChars(8)}`, // 生成唯一的 slug
                 // 可以添加一個 meta 字段標識這是協會 Profile
                 meta: {
                     associationId: associationId,

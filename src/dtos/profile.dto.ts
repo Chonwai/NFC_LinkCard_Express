@@ -19,6 +19,10 @@ export class CreateProfileDto {
     @IsObject()
     @IsOptional()
     appearance?: Record<string, any>;
+
+    @IsString()
+    @IsOptional()
+    slug?: string;
 }
 
 export class UpdateProfileDto {
