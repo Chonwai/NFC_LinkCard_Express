@@ -25,6 +25,7 @@ export class MemberService {
             ...(includeInactive ? {} : { membershipStatus: MembershipStatus.ACTIVE }),
         };
 
+        // 獲取協會會員及其相關資料
         const members = await this.prisma.associationMember.findMany({
             where,
             include: {
@@ -35,6 +36,24 @@ export class MemberService {
                         username: true,
                         display_name: true,
                         avatar: true,
+                        profiles: {
+                            select: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                                profile_image: true,
+                                description: true,
+                                is_default: true,
+                                badges: {
+                                    where: {
+                                        associationId: associationId,
+                                    },
+                                    select: {
+                                        id: true,
+                                    },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -43,7 +62,54 @@ export class MemberService {
             },
         });
 
-        return members;
+        // 處理結果，添加更有用的 Profile 信息
+        return members.map((member) => {
+            const { user, ...memberData } = member;
+
+            // 獲取所有 profiles
+            const profiles = user.profiles || [];
+
+            // 1. 尋找與當前協會關聯的 Profile
+            let associationProfile = null;
+            let defaultProfile = null;
+
+            // 遍歷所有 profiles
+            for (const profile of profiles) {
+                // 檢查是否與協會相關聯 (通過 badges)
+                if (profile.badges && profile.badges.length > 0) {
+                    const { badges, ...rest } = profile;
+                    associationProfile = rest;
+                }
+
+                // 檢查是否為默認 profile
+                if (profile.is_default) {
+                    const { badges, ...rest } = profile;
+                    defaultProfile = rest;
+                }
+            }
+
+            // 如果沒有找到任何 profile，使用第一個或 null
+            let selectedProfile = null;
+            if (associationProfile) {
+                selectedProfile = associationProfile;
+            } else if (defaultProfile) {
+                selectedProfile = defaultProfile;
+            } else if (profiles.length > 0) {
+                const { badges, ...rest } = profiles[0];
+                selectedProfile = rest;
+            }
+
+            // 返回處理後的結果
+            return {
+                ...memberData,
+                user: {
+                    ...user,
+                    profiles: undefined, // 移除原始 profiles 數組
+                    defaultProfile: selectedProfile, // 按優先順序選擇的 profile
+                    hasAssociationProfile: associationProfile !== null, // 是否有協會專屬 profile
+                },
+            };
+        });
     }
 
     /**
