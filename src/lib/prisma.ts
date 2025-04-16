@@ -6,7 +6,7 @@ import { jwtConfig } from '../config/jwt.config';
 const prisma = new PrismaClient({
     datasources: {
         db: {
-            url: process.env.POSTGRES_PRISMA_URL,
+            url: process.env.DATABASE_URL,
         },
     },
     log: ['query', 'error', 'warn'],
