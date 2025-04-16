@@ -1,5 +1,6 @@
 # 環境變數
 .env
+.env.example
 .env.local
 .env.development
 .env.staging
