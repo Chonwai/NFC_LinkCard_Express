@@ -173,7 +173,7 @@ export class MemberInvitationController {
     activateInvitedUser = async (req: Request, res: Response) => {
         try {
             const { token } = req.body; // 激活令牌
-            const { password, displayName, acceptTerms } = req.body; // 新用戶資料
+            const { password, displayName, username, acceptTerms } = req.body; // 新用戶資料
 
             if (!token || !password) {
                 return ApiResponse.error(res, '缺少必要參數', 'MISSING_PARAMS', null, 400);
@@ -182,6 +182,7 @@ export class MemberInvitationController {
             // 調用服務層方法激活用戶
             const result = await this.memberInvitationService.activateInvitedUser(token, password, {
                 displayName,
+                username, // 傳遞用戶自定義的用戶名
                 acceptTerms,
             });
 

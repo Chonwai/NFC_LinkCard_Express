@@ -497,7 +497,8 @@ export class MemberInvitationService {
             where: { id: user.id },
             data: {
                 password: hashedPassword, // 更新為用戶設置的、bcrypt 哈希後的密碼
-                display_name: userData?.displayName || user.username,
+                display_name: userData?.displayName || user.display_name || user.username,
+                username: userData?.username || user.username, // 允許用戶自定義用戶名
                 is_verified: true,
                 verification_token: null,
                 meta: {
