@@ -85,6 +85,7 @@ export class ProfileBadgeService {
             profileId: badge.profileId,
             associationId: badge.associationId,
             associationName: association.name,
+            associationSlug: association.slug,
             associationLogo: association.logo || undefined,
             displayOrder: badge.displayOrder,
             isVisible: badge.isVisible,
@@ -102,13 +103,19 @@ export class ProfileBadgeService {
         const badges = await this.prisma.profileBadge.findMany({
             where: {
                 profileId,
-                isVisible: true,
+            },
+            include: {
+                association: {
+                    select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                        logo: true,
+                    },
+                },
             },
             orderBy: {
                 displayOrder: 'asc',
-            },
-            include: {
-                association: true,
             },
         });
 
@@ -117,9 +124,10 @@ export class ProfileBadgeService {
             profileId: badge.profileId,
             associationId: badge.associationId,
             associationName: badge.association.name,
+            associationSlug: badge.association.slug,
             associationLogo: badge.association.logo || undefined,
-            displayOrder: badge.displayOrder,
             isVisible: badge.isVisible,
+            displayOrder: badge.displayOrder,
             customLabel: badge.customLabel || undefined,
             customColor: badge.customColor || undefined,
             customSize: badge.customSize || undefined,
@@ -171,6 +179,7 @@ export class ProfileBadgeService {
                 profileId,
                 associationId: member.associationId,
                 associationName: member.association.name,
+                associationSlug: member.association.slug,
                 associationLogo: member.association.logo || undefined,
                 displayOrder: 0,
                 isVisible: true,
@@ -218,6 +227,7 @@ export class ProfileBadgeService {
             profileId: updatedBadge.profileId,
             associationId: updatedBadge.associationId,
             associationName: updatedBadge.association.name,
+            associationSlug: updatedBadge.association.slug,
             associationLogo: updatedBadge.association.logo || undefined,
             displayOrder: updatedBadge.displayOrder,
             isVisible: updatedBadge.isVisible,
@@ -285,6 +295,7 @@ export class ProfileBadgeService {
             profileId: badge.profileId,
             associationId: badge.associationId,
             associationName: badge.association.name,
+            associationSlug: badge.association.slug,
             associationLogo: badge.association.logo || undefined,
             displayOrder: badge.displayOrder,
             isVisible: badge.isVisible,

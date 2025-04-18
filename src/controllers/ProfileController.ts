@@ -9,6 +9,7 @@ import { MemberService } from '../association/services/MemberService';
 import { Service } from 'typedi';
 import { Container } from 'typedi';
 import { ProfileBadgeService } from '../association/services/ProfileBadgeService';
+import { Profile } from '@prisma/client';
 
 @Service()
 export class ProfileController {
@@ -75,6 +76,7 @@ export class ProfileController {
                                 id: badge.id,
                                 associationId: badge.associationId,
                                 associationName: badge.associationName,
+                                associationSlug: badge.associationSlug,
                                 logo: badge.associationLogo,
                                 color: badge.customColor || '#1877F2', // 默認藍色，類似 Facebook
                                 displayMode: badge.displayMode,
@@ -115,8 +117,41 @@ export class ProfileController {
 
     getBySlug = async (req: Request, res: Response) => {
         try {
-            const profile = await this.profileService.findBySlug(req.params.slug, res);
-            return ApiResponse.success(res, { profile });
+            // 獲取基本檔案信息
+            const profile: any = await this.profileService.findBySlug(req.params.slug, res);
+
+            // 獲取檔案徽章
+            let profileWithBadges = { ...profile, badges: [] };
+
+            try {
+                const profileBadgeService = Container.get(ProfileBadgeService);
+                const badges = await profileBadgeService.getProfileBadges(profile.id);
+
+                // 只保留必要的徽章信息
+                const simpleBadges = badges
+                    .filter((badge) => badge.isVisible)
+                    .map((badge) => ({
+                        id: badge.id,
+                        associationId: badge.associationId,
+                        associationName: badge.associationName,
+                        associationSlug: badge.associationSlug,
+                        logo: badge.associationLogo,
+                        color: badge.customColor || '#1877F2',
+                        displayMode: badge.displayMode,
+                        createdAt: badge.createdAt,
+                    }))
+                    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+                profileWithBadges = {
+                    ...profile,
+                    badges: simpleBadges,
+                };
+            } catch (error) {
+                console.error(`獲取檔案 ${profile.id} 的徽章時發生錯誤:`, error);
+                // 出錯時使用空徽章數組
+            }
+
+            return ApiResponse.success(res, { profile: profileWithBadges });
         } catch (error: unknown) {
             const apiError = error as ApiError;
             return ApiResponse.error(

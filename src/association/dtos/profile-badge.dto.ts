@@ -91,11 +91,12 @@ export class UpdateProfileBadgeDto {
  * 個人檔案徽章響應數據傳輸對象
  * 用於向客戶端返回徽章數據
  */
-export class ProfileBadgeResponseDto {
+export interface ProfileBadgeResponseDto {
     id: string;
     profileId: string;
     associationId: string;
     associationName: string;
+    associationSlug: string;
     associationLogo?: string;
     displayOrder: number;
     isVisible: boolean;
