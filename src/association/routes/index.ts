@@ -116,11 +116,6 @@ router.post(
 
 // 個人檔案徽章路由
 router.get('/profiles/:id/badges', profileBadgeController.getProfileBadges);
-router.get(
-    '/profiles/:id/available-badges',
-    authMiddleware,
-    profileBadgeController.getAvailableBadges,
-);
 router.post('/profiles/:id/badges', authMiddleware, profileBadgeController.createProfileBadge);
 router.put('/profiles/badges/:id', authMiddleware, profileBadgeController.updateProfileBadge);
 router.put('/profiles/:id/badges', authMiddleware, profileBadgeController.batchUpdateProfileBadges);

@@ -16,7 +16,10 @@ export class ProfileBadgeService {
     }
 
     // 創建個人檔案徽章
-    async createProfileBadge(dto: CreateProfileBadgeDto): Promise<ProfileBadgeResponseDto> {
+    async createProfileBadge(
+        dto: Omit<CreateProfileBadgeDto, 'userId'>,
+        userId: string,
+    ): Promise<ProfileBadgeResponseDto> {
         // 檢查個人檔案是否存在
         const profile = await this.prisma.profile.findUnique({
             where: { id: dto.profileId },
@@ -40,7 +43,7 @@ export class ProfileBadgeService {
             where: {
                 associationId_userId: {
                     associationId: dto.associationId,
-                    userId: dto.userId,
+                    userId: userId,
                 },
             },
         });
@@ -135,109 +138,6 @@ export class ProfileBadgeService {
             createdAt: badge.createdAt,
             updatedAt: badge.updatedAt,
         }));
-    }
-
-    // 獲取用戶可用的徽章（用戶是成員的所有協會）
-    async getAvailableBadges(
-        userId: string,
-        profileId: string,
-    ): Promise<ProfileBadgeResponseDto[]> {
-        // 檢查個人檔案是否屬於該用戶
-        const profile = await this.prisma.profile.findUnique({
-            where: { id: profileId },
-            select: { user_id: true },
-        });
-
-        if (!profile || profile.user_id !== userId) {
-            throw new Error('無權訪問該個人檔案');
-        }
-
-        // 獲取用戶已經是成員的所有協會
-        const members = await this.prisma.associationMember.findMany({
-            where: {
-                userId,
-                membershipStatus: 'ACTIVE', // 只獲取活躍的成員資格
-            },
-            include: {
-                association: true,
-            },
-        });
-
-        // 獲取個人檔案當前的徽章
-        const existingBadges = await this.prisma.profileBadge.findMany({
-            where: { profileId },
-            select: { associationId: true },
-        });
-
-        const existingAssociationIds = new Set(existingBadges.map((b) => b.associationId));
-
-        // 過濾掉已經添加的協會
-        return members
-            .filter((member) => !existingAssociationIds.has(member.associationId))
-            .map((member) => ({
-                id: '', // 尚未創建，沒有ID
-                profileId,
-                associationId: member.associationId,
-                associationName: member.association.name,
-                associationSlug: member.association.slug,
-                associationLogo: member.association.logo || undefined,
-                displayOrder: 0,
-                isVisible: true,
-                customLabel: undefined,
-                customColor: undefined,
-                customSize: undefined,
-                displayMode: BadgeDisplayMode.FULL,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            }));
-    }
-
-    // 更新個人檔案徽章
-    async updateProfileBadge(
-        id: string,
-        userId: string,
-        dto: UpdateProfileBadgeDto,
-    ): Promise<ProfileBadgeResponseDto> {
-        // 獲取徽章并檢查權限
-        const badge = await this.getProfileBadgeById(id);
-        const profile = await this.getProfileOwner(badge.profileId);
-
-        if (profile.user_id !== userId) {
-            throw new Error('無權更新該徽章');
-        }
-
-        // 更新徽章
-        const updatedBadge = await this.prisma.profileBadge.update({
-            where: { id },
-            data: {
-                displayOrder: dto.displayOrder,
-                isVisible: dto.isVisible,
-                customLabel: dto.customLabel,
-                customColor: dto.customColor,
-                customSize: dto.customSize,
-                displayMode: dto.displayMode,
-            },
-            include: {
-                association: true,
-            },
-        });
-
-        return {
-            id: updatedBadge.id,
-            profileId: updatedBadge.profileId,
-            associationId: updatedBadge.associationId,
-            associationName: updatedBadge.association.name,
-            associationSlug: updatedBadge.association.slug,
-            associationLogo: updatedBadge.association.logo || undefined,
-            displayOrder: updatedBadge.displayOrder,
-            isVisible: updatedBadge.isVisible,
-            customLabel: updatedBadge.customLabel || undefined,
-            customColor: updatedBadge.customColor || undefined,
-            customSize: updatedBadge.customSize || undefined,
-            displayMode: updatedBadge.displayMode,
-            createdAt: updatedBadge.createdAt,
-            updatedAt: updatedBadge.updatedAt,
-        };
     }
 
     // 批量更新個人檔案徽章
@@ -349,5 +249,53 @@ export class ProfileBadgeService {
         }
 
         return profile;
+    }
+
+    // 更新個人檔案徽章
+    async updateProfileBadge(
+        id: string,
+        userId: string,
+        dto: UpdateProfileBadgeDto,
+    ): Promise<ProfileBadgeResponseDto> {
+        // 獲取徽章并檢查權限
+        const badge = await this.getProfileBadgeById(id);
+        const profile = await this.getProfileOwner(badge.profileId);
+
+        if (profile.user_id !== userId) {
+            throw new Error('無權更新該徽章');
+        }
+
+        // 更新徽章
+        const updatedBadge = await this.prisma.profileBadge.update({
+            where: { id },
+            data: {
+                displayOrder: dto.displayOrder,
+                isVisible: dto.isVisible,
+                customLabel: dto.customLabel,
+                customColor: dto.customColor,
+                customSize: dto.customSize,
+                displayMode: dto.displayMode,
+            },
+            include: {
+                association: true,
+            },
+        });
+
+        return {
+            id: updatedBadge.id,
+            profileId: updatedBadge.profileId,
+            associationId: updatedBadge.associationId,
+            associationName: updatedBadge.association.name,
+            associationSlug: updatedBadge.association.slug,
+            associationLogo: updatedBadge.association.logo || undefined,
+            displayOrder: updatedBadge.displayOrder,
+            isVisible: updatedBadge.isVisible,
+            customLabel: updatedBadge.customLabel || undefined,
+            customColor: updatedBadge.customColor || undefined,
+            customSize: updatedBadge.customSize || undefined,
+            displayMode: updatedBadge.displayMode,
+            createdAt: updatedBadge.createdAt,
+            updatedAt: updatedBadge.updatedAt,
+        };
     }
 }

@@ -37,9 +37,11 @@ export class ProfileBadgeController {
                 return ApiResponse.error(res, '未授權的訪問', 'UNAUTHORIZED', null, 401);
             }
 
+            // 創建不包含 userId 的 DTO 對象，使用適當的類型
             const dto = plainToClass(CreateProfileBadgeDto, {
                 ...req.body,
                 profileId: id,
+                userId: userId, // 添加 userId 到 DTO
             });
 
             const errors = await validate(dto);
@@ -47,7 +49,20 @@ export class ProfileBadgeController {
                 return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
             }
 
-            const badge = await this.profileBadgeService.createProfileBadge(dto);
+            // 將 userId 作為單獨參數傳遞給服務方法
+            const badge = await this.profileBadgeService.createProfileBadge(
+                {
+                    profileId: dto.profileId,
+                    associationId: dto.associationId,
+                    displayOrder: dto.displayOrder,
+                    isVisible: dto.isVisible,
+                    customLabel: dto.customLabel,
+                    customColor: dto.customColor,
+                    customSize: dto.customSize,
+                    displayMode: dto.displayMode,
+                },
+                userId,
+            );
             return ApiResponse.success(res, { badge });
         } catch (error) {
             return ApiResponse.error(
@@ -144,26 +159,26 @@ export class ProfileBadgeController {
         }
     };
 
-    // 獲取可用徽章
-    getAvailableBadges = async (req: Request, res: Response) => {
-        try {
-            const { id } = req.params; // 個人檔案ID
-            const userId = req.user?.id;
+    // // 獲取可用徽章
+    // getAvailableBadges = async (req: Request, res: Response) => {
+    //     try {
+    //         const { id } = req.params; // 個人檔案ID
+    //         const userId = req.user?.id;
 
-            if (!userId) {
-                return ApiResponse.error(res, '未授權的訪問', 'UNAUTHORIZED', null, 401);
-            }
+    //         if (!userId) {
+    //             return ApiResponse.error(res, '未授權的訪問', 'UNAUTHORIZED', null, 401);
+    //         }
 
-            const badges = await this.profileBadgeService.getAvailableBadges(userId, id);
-            return ApiResponse.success(res, { badges });
-        } catch (error) {
-            return ApiResponse.error(
-                res,
-                (error as Error).message,
-                'PROFILE_BADGE_ERROR',
-                null,
-                500,
-            );
-        }
-    };
+    //         const badges = await this.profileBadgeService.getAvailableBadges(userId, id);
+    //         return ApiResponse.success(res, { badges });
+    //     } catch (error) {
+    //         return ApiResponse.error(
+    //             res,
+    //             (error as Error).message,
+    //             'PROFILE_BADGE_ERROR',
+    //             null,
+    //             500,
+    //         );
+    //     }
+    // };
 }

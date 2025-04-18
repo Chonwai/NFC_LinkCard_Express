@@ -413,12 +413,14 @@ export class AssociationController {
             // --- 自動添加協會徽章到新 Profile ---
             // 使用 ProfileBadgeService 添加徽章
             try {
-                await this.profileBadgeService.createProfileBadge({
-                    profileId: newProfile.id,
-                    associationId: associationId,
-                    userId: userId, // 確保傳遞 userId
-                    displayMode: BadgeDisplayMode.FULL, // 默認顯示模式 (如果實現了)
-                });
+                await this.profileBadgeService.createProfileBadge(
+                    {
+                        profileId: newProfile.id,
+                        associationId: associationId,
+                        displayMode: BadgeDisplayMode.FULL, // 默認顯示模式 (如果實現了)
+                    },
+                    userId,
+                );
             } catch (badgeError) {
                 // 即使徽章創建失敗，Profile 也已創建，記錄錯誤但繼續
                 console.error(

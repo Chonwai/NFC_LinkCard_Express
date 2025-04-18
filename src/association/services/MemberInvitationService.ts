@@ -593,7 +593,7 @@ export class MemberInvitationService {
                         displayOrder: 0, // 默認順序
                         // customLabel, customColor, customSize 可選，此處省略
                     };
-                    await this.profileBadgeService.createProfileBadge(badgeDto);
+                    await this.profileBadgeService.createProfileBadge(badgeDto, updatedUser.id);
                     console.log(
                         `Successfully added association badge to default profile ${defaultProfile.id} for user ${updatedUser.id}`,
                     );

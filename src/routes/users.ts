@@ -24,5 +24,6 @@ router.get('/me', userController.getCurrentUser);
 router.patch('/me', userController.updateProfile);
 router.patch('/me/password', userController.updatePassword);
 router.post('/me/avatar', upload.single('avatar') as any, userController.uploadAvatar);
+router.get('/me/badges', userController.getUserBadges);
 
 export default router;
