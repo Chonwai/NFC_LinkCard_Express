@@ -7,6 +7,8 @@ import { CreateProfileDto, UpdateProfileDto } from '../dtos/profile.dto';
 import { validate } from 'class-validator';
 import { MemberService } from '../association/services/MemberService';
 import { Service } from 'typedi';
+import { Container } from 'typedi';
+import { ProfileBadgeService } from '../association/services/ProfileBadgeService';
 
 @Service()
 export class ProfileController {
@@ -44,6 +46,8 @@ export class ProfileController {
     getMyProfiles = async (req: Request, res: Response) => {
         try {
             const userId = req.user!.id;
+
+            // 獲取用戶個人檔案
             const profiles = await this.profileService.findByUserId(userId);
 
             // 檢查用戶是否有管理協會的權限
@@ -56,8 +60,45 @@ export class ProfileController {
                 // 即使發生錯誤也繼續執行，不影響主要功能
             }
 
+            // 獲取每個檔案的徽章
+            const profilesWithBadges = await Promise.all(
+                profiles.map(async (profile) => {
+                    try {
+                        // 獲取該檔案的徽章 (使用現有的 ProfileBadgeService)
+                        const profileBadgeService = Container.get(ProfileBadgeService);
+                        const badges = await profileBadgeService.getProfileBadges(profile.id);
+
+                        // 只保留必要的徽章信息，確保數據量最小化
+                        const simpleBadges = badges
+                            .filter((badge) => badge.isVisible) // 只顯示可見的徽章
+                            .map((badge) => ({
+                                id: badge.id,
+                                associationId: badge.associationId,
+                                associationName: badge.associationName,
+                                logo: badge.associationLogo,
+                                color: badge.customColor || '#1877F2', // 默認藍色，類似 Facebook
+                                displayMode: badge.displayMode,
+                                createdAt: badge.createdAt,
+                            }))
+                            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+                        // 返回包含徽章的檔案信息
+                        return {
+                            ...profile,
+                            badges: simpleBadges,
+                        };
+                    } catch (error) {
+                        console.error(`獲取檔案 ${profile.id} 的徽章時發生錯誤:`, error);
+                        // 即使發生錯誤也返回原始檔案，徽章為空數組
+                        return {
+                            ...profile,
+                            badges: [],
+                        };
+                    }
+                }),
+            );
+
             return ApiResponse.success(res, {
-                profiles,
+                profiles: profilesWithBadges,
                 hasManageableAssociations,
             });
         } catch (error: unknown) {
