@@ -70,7 +70,7 @@ export class ProfileService {
         });
     }
 
-    async findBySlug(slug: string, res: Response) {
+    async findBySlug(slug: string) {
         const profile = await prisma.profile.findUnique({
             where: { slug },
             include: {
@@ -90,11 +90,11 @@ export class ProfileService {
         });
 
         if (!profile) {
-            return ErrorHandler.notFound(res, '檔案不存在', 'PROFILE_NOT_FOUND');
+            throw new Error('檔案不存在');
         }
 
         if (!profile.is_public) {
-            return ErrorHandler.forbidden(res, '此檔案為私密', 'PROFILE_PRIVATE');
+            throw new Error('此檔案為私密');
         }
 
         return profile;

@@ -118,10 +118,10 @@ export class ProfileController {
     getBySlug = async (req: Request, res: Response) => {
         try {
             // 獲取基本檔案信息
-            const profile: any = await this.profileService.findBySlug(req.params.slug, res);
+            const profile = await this.profileService.findBySlug(req.params.slug);
 
             // 獲取檔案徽章
-            let profileWithBadges = { ...profile, badges: [] };
+            let profileWithBadges: any = { ...profile, badges: [] };
 
             try {
                 const profileBadgeService = Container.get(ProfileBadgeService);
@@ -147,19 +147,26 @@ export class ProfileController {
                     badges: simpleBadges,
                 };
             } catch (error) {
-                console.error(`獲取檔案 ${profile.id} 的徽章時發生錯誤:`, error);
-                // 出錯時使用空徽章數組
+                console.error(`Error fetching badges for profile ${profile.id}:`, error);
+                // 即使獲取徽章失敗，我們仍繼續返回基本檔案信息
             }
 
             return ApiResponse.success(res, { profile: profileWithBadges });
-        } catch (error: unknown) {
-            const apiError = error as ApiError;
+        } catch (error: any) {
+            // 處理 ProfileService.findBySlug 可能拋出的錯誤
+            if (error.message === '檔案不存在') {
+                return ApiResponse.error(res, '檔案不存在', 'PROFILE_NOT_FOUND', null, 404);
+            } else if (error.message === '此檔案為私密') {
+                return ApiResponse.error(res, '此檔案為私密', 'PROFILE_PRIVATE', null, 403);
+            }
+
+            // 處理其他未預期的錯誤
             return ApiResponse.error(
                 res,
-                '檔案不存在',
-                'PROFILE_NOT_FOUND',
-                apiError.message,
-                apiError.status || 404,
+                '獲取檔案失敗',
+                'PROFILE_FETCH_ERROR',
+                error.message,
+                500,
             );
         }
     };
