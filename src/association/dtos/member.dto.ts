@@ -55,3 +55,18 @@ export class UpdateMemberDto {
     @IsDate()
     renewalDate?: Date;
 }
+
+export class UpdateMemberStatusDto {
+    @IsEnum(MembershipStatus)
+    status: MembershipStatus;
+
+    @IsOptional()
+    @IsString()
+    reason?: string;
+}
+
+export class SoftDeleteMemberDto {
+    @IsOptional()
+    @IsString()
+    reason?: string;
+}

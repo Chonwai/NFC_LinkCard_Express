@@ -161,9 +161,13 @@ enum MembershipTier {
 }
 
 enum MembershipStatus {
-  ACTIVE
-  INACTIVE
-  PENDING
+  ACTIVE     // 活躍會員
+  INACTIVE   // 非活躍會員
+  PENDING    // 待批准
+  EXPIRED    // 會員已過期
+  SUSPENDED  // 會員已暫停（例如違反規定）
+  TERMINATED // 會員已終止（例如由管理員終止）
+  CANCELLED  // 會員自行取消
 }
 
 model Association {
@@ -216,8 +220,11 @@ model AssociationMember {
   position           String? // 在協會中的職位
   joinDate           DateTime  @default(now()) @map("join_date")
   renewalDate        DateTime? @map("renewal_date") // 會員續費日期
+  deleted_at         DateTime? @map("deleted_at")   // 軟刪除時間戳
 
   meta Json? @default("{}")
+
+  statusHistory MembershipHistory[] // 會員資格狀態變更歷史
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -300,4 +307,19 @@ enum BadgeDisplayMode {
   HIDDEN
   BADGE_ONLY
   FULL
+}
+
+// 新增會員歷史記錄模型
+model MembershipHistory {
+  id                  String           @id @default(uuid())
+  association_member_id String           @map("association_member_id")
+  associationMember   AssociationMember @relation(fields: [association_member_id], references: [id], onDelete: Cascade)
+  previous_status     MembershipStatus  @map("previous_status")
+  new_status          MembershipStatus  @map("new_status")
+  changed_by          String            @map("changed_by")  // 用戶ID
+  reason              String?
+  created_at          DateTime          @default(now()) @map("created_at")
+  
+  @@index([association_member_id])
+  @@map("membership_history")
 }

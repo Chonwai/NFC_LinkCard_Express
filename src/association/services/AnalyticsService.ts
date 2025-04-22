@@ -145,29 +145,49 @@ export class AnalyticsService {
      * @returns 會員活躍度數據
      */
     async getMemberEngagement(associationId: string) {
-        // 獲取協會總會員數
+        // 獲取協會有效會員總數（排除已刪除會員）
         const totalMembers = await this.prisma.associationMember.count({
-            where: { associationId },
+            where: {
+                associationId,
+                deleted_at: null,
+            },
         });
 
-        // 按會員身份分組
+        // 按會員身份分組（排除已刪除會員）
         const membersByRole = await this.prisma.associationMember.groupBy({
             by: ['role'],
-            where: { associationId },
+            where: {
+                associationId,
+                deleted_at: null,
+            },
             _count: true,
         });
 
-        // 按會員狀態分組
+        // 按會員狀態分組（排除已刪除會員）
         const membersByStatus = await this.prisma.associationMember.groupBy({
             by: ['membershipStatus'],
-            where: { associationId },
+            where: {
+                associationId,
+                deleted_at: null,
+            },
             _count: true,
+        });
+
+        // 獲取活躍會員數量
+        const activeMembers = await this.prisma.associationMember.count({
+            where: {
+                associationId,
+                membershipStatus: 'ACTIVE',
+                deleted_at: null,
+            },
         });
 
         return {
             totalMembers,
+            activeMembers,
             membersByRole,
             membersByStatus,
+            activeRate: totalMembers > 0 ? Math.round((activeMembers / totalMembers) * 100) : 0,
         };
     }
 

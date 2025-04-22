@@ -200,9 +200,23 @@ export class AnalyticsController {
                 },
             });
 
-            // 獲取會員總數
+            // 獲取活躍會員總數 (只計算活躍狀態的會員，排除已刪除、過期等)
             const totalMembers = await this.prisma.associationMember.count({
-                where: { associationId },
+                where: {
+                    associationId,
+                    membershipStatus: 'ACTIVE',
+                    deleted_at: null,
+                },
+            });
+
+            // 按會員狀態分組獲取詳細統計
+            const membersByStatus = await this.prisma.associationMember.groupBy({
+                by: ['membershipStatus'],
+                where: {
+                    associationId,
+                    deleted_at: null, // 排除已刪除會員
+                },
+                _count: true,
             });
 
             // 獲取潛在客戶總數
@@ -215,6 +229,7 @@ export class AnalyticsController {
                     totalVisits,
                     totalMembers,
                     totalLeads,
+                    membersByStatus,
                     createdAt: association.createdAt,
                 },
             });
@@ -245,9 +260,13 @@ export class AnalyticsController {
                 return ApiResponse.error(res, '協會不存在', 'ASSOCIATION_NOT_FOUND', null, 404);
             }
 
-            // 獲取訪問總數
+            // 獲取活躍會員總數 (只計算活躍狀態的會員，排除已刪除、過期等)
             const totalMembers = await this.prisma.associationMember.count({
-                where: { associationId },
+                where: {
+                    associationId,
+                    membershipStatus: 'ACTIVE',
+                    deleted_at: null,
+                },
             });
 
             return ApiResponse.success(res, {

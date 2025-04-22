@@ -128,4 +128,41 @@ router.post(
     associationController.createAssociationProfile,
 );
 
+// 新增會員狀態與生命週期管理路由
+router.patch(
+    '/associations/members/:id/status',
+    authMiddleware,
+    memberController.updateMemberStatus,
+);
+router.patch('/associations/members/:id/role', authMiddleware, memberController.updateMemberRole);
+router.patch(
+    '/associations/members/:id/visibility',
+    authMiddleware,
+    memberController.updateDirectoryVisibility,
+);
+router.delete('/associations/:id/members/:memberId', authMiddleware, memberController.removeMember);
+
+// 會員歷史和恢復功能
+router.get('/associations/:id/deleted-members', authMiddleware, memberController.getDeletedMembers);
+router.get('/associations/members/:id/history', authMiddleware, memberController.getMemberHistory);
+router.post('/associations/members/:id/restore', authMiddleware, memberController.restoreMember);
+
+// 會員狀態管理
+router.patch('/associations/members/:id/suspend', authMiddleware, memberController.suspendMember);
+router.patch('/associations/members/:id/activate', authMiddleware, memberController.activateMember);
+router.patch('/associations/members/:id/cancel', authMiddleware, memberController.cancelMembership);
+router.post('/associations/members/:id/renew', authMiddleware, memberController.renewMembership);
+
+// 系統管理功能
+router.post(
+    '/associations/check-expiries',
+    authMiddleware,
+    memberController.checkExpiredMemberships,
+);
+
+// 潛在客戶路由
+router.post('/associations/:id/leads', leadController.createLead);
+router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
+router.patch('/associations/leads/:id/status', authMiddleware, leadController.updateLead);
+
 export default router;

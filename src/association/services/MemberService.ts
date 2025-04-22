@@ -1,6 +1,7 @@
 import { Service } from 'typedi';
-import { PrismaClient, MembershipStatus, MembershipTier } from '@prisma/client';
-import { AddMemberDto, UpdateMemberDto } from '../dtos/member.dto';
+import { PrismaClient, MembershipStatus, MembershipTier, MemberRole } from '@prisma/client';
+import { MemberHistoryService } from './MemberHistoryService';
+import { AddMemberDto, UpdateMemberDto, SoftDeleteMemberDto } from '../dtos/member.dto';
 
 /**
  * 協會會員管理服務
@@ -8,21 +9,29 @@ import { AddMemberDto, UpdateMemberDto } from '../dtos/member.dto';
 @Service()
 export class MemberService {
     private prisma: PrismaClient;
+    private memberHistoryService: MemberHistoryService;
 
     constructor() {
         this.prisma = new PrismaClient();
+        this.memberHistoryService = new MemberHistoryService();
     }
 
     /**
      * 獲取協會會員列表
      * @param associationId 協會ID
-     * @param includeInactive 是否包含未激活會員
+     * @param includeInactive 是否包含非活躍會員
+     * @param includeDeleted 是否包含已軟刪除會員
      * @returns 會員列表
      */
-    async getMembers(associationId: string, includeInactive: boolean = false) {
+    async getMembers(
+        associationId: string,
+        includeInactive: boolean = false,
+        includeDeleted: boolean = false,
+    ) {
         const where = {
             associationId,
             ...(includeInactive ? {} : { membershipStatus: MembershipStatus.ACTIVE }),
+            ...(!includeDeleted ? { deleted_at: null } : {}),
         };
 
         // 獲取協會會員及其相關資料
@@ -52,6 +61,9 @@ export class MemberService {
                                         id: true,
                                     },
                                 },
+                            },
+                            where: {
+                                is_public: true,
                             },
                         },
                     },
@@ -113,12 +125,48 @@ export class MemberService {
     }
 
     /**
+     * 獲取已刪除的會員列表
+     * @param associationId 協會ID
+     * @returns 已刪除的會員列表
+     */
+    async getDeletedMembers(associationId: string) {
+        return this.prisma.associationMember.findMany({
+            where: {
+                associationId,
+                deleted_at: {
+                    not: null,
+                },
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        username: true,
+                        display_name: true,
+                        email: true,
+                    },
+                },
+            },
+            orderBy: {
+                deleted_at: 'desc',
+            },
+        });
+    }
+
+    /**
      * 更新會員狀態
      * @param memberId 會員ID
      * @param status 會員狀態
+     * @param userId 操作者ID
+     * @param reason 狀態變更原因（可選）
      * @returns 更新後的會員
      */
-    async updateMemberStatus(memberId: string, status: MembershipStatus) {
+    async updateMemberStatus(
+        memberId: string,
+        status: MembershipStatus,
+        userId: string,
+        reason?: string,
+    ) {
         const member = await this.prisma.associationMember.findUnique({
             where: { id: memberId },
         });
@@ -126,6 +174,15 @@ export class MemberService {
         if (!member) {
             throw new Error('會員不存在');
         }
+
+        // 記錄狀態變更
+        await this.memberHistoryService.logStatusChange(
+            memberId,
+            member.membershipStatus,
+            status,
+            userId,
+            reason,
+        );
 
         return this.prisma.associationMember.update({
             where: { id: memberId },
@@ -144,9 +201,53 @@ export class MemberService {
     }
 
     /**
-     * 移除協會會員
+     * 軟刪除會員（將會員標記為已刪除而非實際刪除）
+     * @param memberId 會員ID
+     * @param userId 操作者ID
+     * @param dto 包含刪除原因的DTO
+     * @returns 刪除結果
+     */
+    async softDeleteMember(memberId: string, userId: string, dto?: SoftDeleteMemberDto) {
+        const member = await this.prisma.associationMember.findUnique({
+            where: { id: memberId },
+        });
+
+        if (!member) {
+            throw new Error('會員不存在');
+        }
+
+        // 記錄狀態變更
+        await this.memberHistoryService.logStatusChange(
+            memberId,
+            member.membershipStatus,
+            MembershipStatus.TERMINATED,
+            userId,
+            dto?.reason || '會員已被移除',
+        );
+
+        // 更新會員狀態為已終止並設置刪除時間
+        await this.prisma.associationMember.update({
+            where: { id: memberId },
+            data: {
+                membershipStatus: MembershipStatus.TERMINATED,
+                deleted_at: new Date(),
+                meta: {
+                    ...(member.meta as any),
+                    removal_reason: dto?.reason,
+                    removed_at: new Date().toISOString(),
+                    removed_by: userId,
+                },
+            },
+        });
+
+        return { success: true, memberId };
+    }
+
+    /**
+     * 移除會員（實際刪除記錄，不推薦使用，應優先使用軟刪除）
      * @param memberId 會員ID
      * @returns 刪除結果
+     * @deprecated 推薦使用 softDeleteMember 代替
      */
     async removeMember(memberId: string) {
         const member = await this.prisma.associationMember.findUnique({
@@ -165,12 +266,13 @@ export class MemberService {
     }
 
     /**
-     * 更新會員角色
+     * 恢復已軟刪除的會員
      * @param memberId 會員ID
-     * @param role 新角色
-     * @returns 更新後的會員
+     * @param userId 操作者ID
+     * @param reason 恢復原因（可選）
+     * @returns 恢復後的會員
      */
-    async updateMemberRole(memberId: string, role: string) {
+    async restoreMember(memberId: string, userId: string, reason?: string) {
         const member = await this.prisma.associationMember.findUnique({
             where: { id: memberId },
         });
@@ -179,9 +281,31 @@ export class MemberService {
             throw new Error('會員不存在');
         }
 
+        if (!member.deleted_at) {
+            throw new Error('會員未被刪除');
+        }
+
+        // 記錄狀態變更
+        await this.memberHistoryService.logStatusChange(
+            memberId,
+            MembershipStatus.TERMINATED,
+            MembershipStatus.ACTIVE,
+            userId,
+            reason || '會員已被恢復',
+        );
+
         return this.prisma.associationMember.update({
             where: { id: memberId },
-            data: { role: role as any },
+            data: {
+                membershipStatus: MembershipStatus.ACTIVE,
+                deleted_at: null,
+                meta: {
+                    ...(member.meta as any),
+                    restored_at: new Date().toISOString(),
+                    restored_by: userId,
+                    restoration_reason: reason,
+                },
+            },
             include: {
                 user: {
                     select: {
@@ -196,24 +320,141 @@ export class MemberService {
     }
 
     /**
-     * 更新會員在目錄中的顯示設置
+     * 暫停會員資格
      * @param memberId 會員ID
-     * @param displayInDirectory 是否在目錄中顯示
+     * @param userId 操作者ID
+     * @param reason 暫停原因（可選）
      * @returns 更新後的會員
      */
-    async updateDirectoryVisibility(memberId: string, displayInDirectory: boolean) {
-        const member = await this.prisma.associationMember.findUnique({
-            where: { id: memberId },
+    async suspendMember(memberId: string, userId: string, reason?: string) {
+        return this.updateMemberStatus(
+            memberId,
+            MembershipStatus.SUSPENDED,
+            userId,
+            reason || '會員資格已被暫停',
+        );
+    }
+
+    /**
+     * 取消會員資格
+     * @param memberId 會員ID
+     * @param userId 操作者ID
+     * @param reason 取消原因（可選）
+     * @returns 更新後的會員
+     */
+    async cancelMembership(memberId: string, userId: string, reason?: string) {
+        return this.updateMemberStatus(
+            memberId,
+            MembershipStatus.CANCELLED,
+            userId,
+            reason || '會員自行取消會員資格',
+        );
+    }
+
+    /**
+     * 終止會員資格
+     * @param memberId 會員ID
+     * @param userId 操作者ID
+     * @param reason 終止原因（可選）
+     * @returns 更新後的會員
+     */
+    async terminateMembership(memberId: string, userId: string, reason?: string) {
+        return this.updateMemberStatus(
+            memberId,
+            MembershipStatus.TERMINATED,
+            userId,
+            reason || '會員資格已被終止',
+        );
+    }
+
+    /**
+     * 激活會員資格
+     * @param memberId 會員ID
+     * @param userId 操作者ID
+     * @param reason 激活原因（可選）
+     * @returns 更新後的會員
+     */
+    async activateMembership(memberId: string, userId: string, reason?: string) {
+        return this.updateMemberStatus(
+            memberId,
+            MembershipStatus.ACTIVE,
+            userId,
+            reason || '會員資格已被激活',
+        );
+    }
+
+    /**
+     * 設置會員資格為過期
+     * @param memberId 會員ID
+     * @param userId 操作者ID
+     * @param reason 過期原因（可選）
+     * @returns 更新後的會員
+     */
+    async expireMembership(memberId: string, userId: string, reason?: string) {
+        return this.updateMemberStatus(
+            memberId,
+            MembershipStatus.EXPIRED,
+            userId,
+            reason || '會員資格已過期',
+        );
+    }
+
+    /**
+     * 檢查並處理過期會員資格
+     * 此方法應由定時任務調用
+     * @returns 處理結果
+     */
+    async checkExpiredMemberships() {
+        const today = new Date();
+
+        // 查找所有已過期但仍處於活躍狀態的會員
+        const expiredMembers = await this.prisma.associationMember.findMany({
+            where: {
+                renewalDate: {
+                    lt: today,
+                },
+                membershipStatus: MembershipStatus.ACTIVE,
+            },
         });
 
-        if (!member) {
-            throw new Error('會員不存在');
+        const results = [];
+
+        // 更新會員狀態為過期
+        for (const member of expiredMembers) {
+            try {
+                await this.updateMemberStatus(
+                    member.id,
+                    MembershipStatus.EXPIRED,
+                    'system', // 系統自動操作
+                    '會員資格已自動過期（系統檢測到續費日期已過）',
+                );
+
+                results.push({
+                    id: member.id,
+                    success: true,
+                });
+            } catch (error) {
+                results.push({
+                    id: member.id,
+                    success: false,
+                    error: (error as Error).message,
+                });
+            }
         }
 
-        return this.prisma.associationMember.update({
-            where: { id: memberId },
-            data: { displayInDirectory },
-        });
+        return {
+            processed: expiredMembers.length,
+            results,
+        };
+    }
+
+    /**
+     * 獲取會員狀態變更歷史
+     * @param memberId 會員ID
+     * @returns 狀態變更歷史列表
+     */
+    async getMemberStatusHistory(memberId: string) {
+        return this.memberHistoryService.getMemberHistory(memberId);
     }
 
     /**
@@ -443,6 +684,143 @@ export class MemberService {
                     },
                 },
             },
+        });
+    }
+
+    /**
+     * 處理會員續費
+     * @param memberId 會員ID
+     * @param months 續費月數
+     * @param userId 操作者ID
+     * @param reason 續費原因（可選）
+     * @returns 續費後的會員記錄
+     */
+    async renewMembership(memberId: string, months: number, userId: string, reason?: string) {
+        const member = await this.prisma.associationMember.findUnique({
+            where: { id: memberId },
+        });
+
+        if (!member) {
+            throw new Error('會員不存在');
+        }
+
+        // 計算新的續費日期
+        const currentDate = new Date();
+        let newRenewalDate: Date;
+
+        // 如果會員已過期或沒有設置續費日期，從當前日期開始計算
+        if (!member.renewalDate || member.renewalDate < currentDate) {
+            newRenewalDate = new Date();
+        } else {
+            // 否則從現有續費日期開始添加
+            newRenewalDate = new Date(member.renewalDate);
+        }
+
+        // 添加續費月數
+        newRenewalDate.setMonth(newRenewalDate.getMonth() + months);
+
+        // 如果會員不是活躍狀態，記錄狀態變更
+        if (member.membershipStatus !== MembershipStatus.ACTIVE) {
+            await this.memberHistoryService.logStatusChange(
+                memberId,
+                member.membershipStatus,
+                MembershipStatus.ACTIVE,
+                userId,
+                reason || `會員續費 ${months} 個月，狀態已更新為活躍`,
+            );
+        } else {
+            // 否則僅記錄續費活動
+            await this.memberHistoryService.logStatusChange(
+                memberId,
+                MembershipStatus.ACTIVE,
+                MembershipStatus.ACTIVE,
+                userId,
+                reason || `會員續費 ${months} 個月`,
+            );
+        }
+
+        // 準備元數據更新
+        const metaData = typeof member.meta === 'object' ? member.meta : {};
+        const updatedMeta = {
+            ...metaData,
+            last_renewal: {
+                date: currentDate.toISOString(),
+                months: months,
+                by: userId,
+                reason: reason || `續費 ${months} 個月`,
+            },
+        };
+
+        // 更新會員記錄
+        return this.prisma.associationMember.update({
+            where: { id: memberId },
+            data: {
+                membershipStatus: MembershipStatus.ACTIVE,
+                renewalDate: newRenewalDate,
+                meta: updatedMeta,
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        display_name: true,
+                    },
+                },
+            },
+        });
+    }
+
+    /**
+     * 更新會員角色
+     * @param memberId 會員ID
+     * @param role 新角色
+     * @returns 更新後的會員
+     */
+    async updateMemberRole(memberId: string, role: string) {
+        const member = await this.prisma.associationMember.findUnique({
+            where: { id: memberId },
+        });
+
+        if (!member) {
+            throw new Error('會員不存在');
+        }
+
+        return this.prisma.associationMember.update({
+            where: { id: memberId },
+            data: { role: role as any },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        display_name: true,
+                    },
+                },
+            },
+        });
+    }
+
+    /**
+     * 更新會員在目錄中的顯示設置
+     * @param memberId 會員ID
+     * @param displayInDirectory 是否在目錄中顯示
+     * @returns 更新後的會員
+     */
+    async updateDirectoryVisibility(memberId: string, displayInDirectory: boolean) {
+        const member = await this.prisma.associationMember.findUnique({
+            where: { id: memberId },
+        });
+
+        if (!member) {
+            throw new Error('會員不存在');
+        }
+
+        return this.prisma.associationMember.update({
+            where: { id: memberId },
+            data: { displayInDirectory },
         });
     }
 }
