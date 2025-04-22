@@ -678,4 +678,31 @@ export class AssociationController {
             );
         }
     };
+
+    /**
+     * 檢查用戶是否為協會成員
+     * GET /associations/:id/check-membership
+     */
+    checkMembership = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const isMember = await this.associationService.isUserMember(associationId, userId);
+            return ApiResponse.success(res, { isMember });
+        } catch (error: any) {
+            console.error('檢查會員資格失敗:', error);
+            return ApiResponse.error(
+                res,
+                '檢查會員資格失敗',
+                'CHECK_MEMBERSHIP_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
 }

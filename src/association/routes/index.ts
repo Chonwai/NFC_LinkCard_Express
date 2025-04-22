@@ -165,4 +165,11 @@ router.post('/associations/:id/leads', leadController.createLead);
 router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
 router.patch('/associations/leads/:id/status', authMiddleware, leadController.updateLead);
 
+// 添加會員資格檢查路由
+router.get(
+    '/associations/:id/check-membership',
+    authMiddleware,
+    associationController.checkMembership,
+);
+
 export default router;
