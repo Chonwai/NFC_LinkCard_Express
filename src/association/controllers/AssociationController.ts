@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
 import { AssociationService } from '../services/AssociationService';
+import { MemberService } from '../services/MemberService';
 import {
     CreateAssociationDto,
     UpdateAssociationDto,
@@ -27,6 +28,7 @@ export class AssociationController {
         private associationService: AssociationService,
         private profileService: ProfileService,
         private profileBadgeService: ProfileBadgeService,
+        private memberService: MemberService,
     ) {
         this.prisma = new PrismaClient();
     }
@@ -680,8 +682,68 @@ export class AssociationController {
     };
 
     /**
-     * 檢查用戶是否為協會成員
-     * GET /associations/:id/check-membership
+     * @openapi
+     * /api/association/associations/{id}/check-membership:
+     *   get:
+     *     tags:
+     *       - Association Membership
+     *     summary: 檢查用戶在指定協會的會員資格和狀態
+     *     description: 檢查當前登入用戶是否為指定協會的成員，並返回其會員狀態詳情。
+     *     security:
+     *       - bearerAuth: []
+     *     parameters:
+     *       - $ref: '#/components/parameters/AssociationId'
+     *     responses:
+     *       '200':
+     *         description: 成功獲取會員資格狀態。
+     *         content:
+     *           application/json:
+     *             schema:
+     *               type: object
+     *               properties:
+     *                 success:
+     *                   type: boolean
+     *                   example: true
+     *                 data:
+     *                   type: object
+     *                   properties:
+     *                     isMember:
+     *                       type: boolean
+     *                       description: 用戶是否為該協會成員
+     *                       example: true
+     *                     membership:
+     *                       type: object
+     *                       description: 會員詳細資訊 (僅當 isMember 為 true 時存在)
+     *                       properties:
+     *                         id:
+     *                           type: string
+     *                           format: uuid
+     *                           description: 會員記錄 ID
+     *                         role:
+     *                           type: string
+     *                           enum: [OWNER, ADMIN, MEMBER]
+     *                           description: 會員角色
+     *                         status:
+     *                           type: string
+     *                           enum: [ACTIVE, PENDING, INACTIVE, SUSPENDED, CANCELLED]
+     *                           description: 會員狀態
+     *                         joinedAt:
+     *                           type: string
+     *                           format: date-time
+     *                           description: 加入時間
+     *                       required:
+     *                         - id
+     *                         - role
+     *                         - status
+     *                         - joinedAt
+     *                   required:
+     *                     - isMember
+     *       '401':
+     *         $ref: '#/components/responses/Unauthorized'
+     *       '404':
+     *         $ref: '#/components/responses/NotFound' # Association or User not found
+     *       '500':
+     *         $ref: '#/components/responses/InternalServerError'
      */
     checkMembership = async (req: Request, res: Response) => {
         try {
@@ -689,20 +751,40 @@ export class AssociationController {
             const userId = req.user?.id;
 
             if (!userId) {
-                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+                return ApiResponse.unauthorized(res, '用戶未認證');
             }
 
-            const isMember = await this.associationService.isUserMember(associationId, userId);
-            return ApiResponse.success(res, { isMember });
+            console.log('associationId: ', associationId);
+            console.log('userId: ', userId);
+
+            // 假設 memberService.getMembershipDetails 返回會員詳情或 null
+            const membershipDetails = await this.memberService.getMemberById(userId, associationId);
+
+            console.log('membershipDetails: ', membershipDetails);
+
+            if (membershipDetails) {
+                // 用戶是會員，返回詳細資訊
+                return ApiResponse.success(res, {
+                    isMember: true,
+                    membership: {
+                        id: membershipDetails.id,
+                        role: membershipDetails.role,
+                        status: membershipDetails.membershipStatus, // 注意 Prisma 模型中的字段名可能是 membershipStatus
+                        joinedAt: membershipDetails.createdAt,
+                        // 可以根據 DTO 或需求添加更多字段
+                    },
+                });
+            } else {
+                // 用戶不是會員
+                return ApiResponse.success(res, { isMember: false });
+            }
         } catch (error: any) {
             console.error('檢查會員資格失敗:', error);
-            return ApiResponse.error(
-                res,
-                '檢查會員資格失敗',
-                'CHECK_MEMBERSHIP_ERROR',
-                error.message,
-                500,
-            );
+            // 處理可能的錯誤，例如協會不存在等
+            if (error.code === 'ASSOCIATION_NOT_FOUND' || error.code === 'USER_NOT_FOUND') {
+                return ApiResponse.notFound(res, error.message);
+            }
+            return ApiResponse.serverError(res, '檢查會員資格時發生錯誤');
         }
     };
 }

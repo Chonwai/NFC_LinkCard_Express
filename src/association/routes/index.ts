@@ -130,13 +130,17 @@ router.post(
 
 // 新增會員狀態與生命週期管理路由
 router.patch(
-    '/associations/members/:id/status',
+    '/associations/:id/members/:memberId/status',
     authMiddleware,
     memberController.updateMemberStatus,
 );
-router.patch('/associations/members/:id/role', authMiddleware, memberController.updateMemberRole);
 router.patch(
-    '/associations/members/:id/visibility',
+    '/associations/:id/members/:memberId/role',
+    authMiddleware,
+    memberController.updateMemberRole,
+);
+router.patch(
+    '/associations/:id/members/:memberId/visibility',
     authMiddleware,
     memberController.updateDirectoryVisibility,
 );

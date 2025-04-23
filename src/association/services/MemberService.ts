@@ -163,12 +163,13 @@ export class MemberService {
      */
     async updateMemberStatus(
         memberId: string,
+        associationId: string,
         status: MembershipStatus,
         userId: string,
         reason?: string,
     ) {
         const member = await this.prisma.associationMember.findUnique({
-            where: { id: memberId },
+            where: { id: memberId, associationId },
         });
 
         if (!member) {
@@ -185,7 +186,7 @@ export class MemberService {
         );
 
         return this.prisma.associationMember.update({
-            where: { id: memberId },
+            where: { id: memberId, associationId },
             data: { membershipStatus: status },
             include: {
                 user: {
@@ -268,13 +269,14 @@ export class MemberService {
     /**
      * 恢復已軟刪除的會員
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 恢復原因（可選）
      * @returns 恢復後的會員
      */
-    async restoreMember(memberId: string, userId: string, reason?: string) {
+    async restoreMember(memberId: string, associationId: string, userId: string, reason?: string) {
         const member = await this.prisma.associationMember.findUnique({
-            where: { id: memberId },
+            where: { id: memberId, associationId },
         });
 
         if (!member) {
@@ -322,13 +324,15 @@ export class MemberService {
     /**
      * 暫停會員資格
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 暫停原因（可選）
      * @returns 更新後的會員
      */
-    async suspendMember(memberId: string, userId: string, reason?: string) {
+    async suspendMember(memberId: string, associationId: string, userId: string, reason?: string) {
         return this.updateMemberStatus(
             memberId,
+            associationId,
             MembershipStatus.SUSPENDED,
             userId,
             reason || '會員資格已被暫停',
@@ -338,13 +342,20 @@ export class MemberService {
     /**
      * 取消會員資格
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 取消原因（可選）
      * @returns 更新後的會員
      */
-    async cancelMembership(memberId: string, userId: string, reason?: string) {
+    async cancelMembership(
+        memberId: string,
+        associationId: string,
+        userId: string,
+        reason?: string,
+    ) {
         return this.updateMemberStatus(
             memberId,
+            associationId,
             MembershipStatus.CANCELLED,
             userId,
             reason || '會員自行取消會員資格',
@@ -354,13 +365,20 @@ export class MemberService {
     /**
      * 終止會員資格
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 終止原因（可選）
      * @returns 更新後的會員
      */
-    async terminateMembership(memberId: string, userId: string, reason?: string) {
+    async terminateMembership(
+        memberId: string,
+        associationId: string,
+        userId: string,
+        reason?: string,
+    ) {
         return this.updateMemberStatus(
             memberId,
+            associationId,
             MembershipStatus.TERMINATED,
             userId,
             reason || '會員資格已被終止',
@@ -370,13 +388,20 @@ export class MemberService {
     /**
      * 激活會員資格
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 激活原因（可選）
      * @returns 更新後的會員
      */
-    async activateMembership(memberId: string, userId: string, reason?: string) {
+    async activateMembership(
+        memberId: string,
+        associationId: string,
+        userId: string,
+        reason?: string,
+    ) {
         return this.updateMemberStatus(
             memberId,
+            associationId,
             MembershipStatus.ACTIVE,
             userId,
             reason || '會員資格已被激活',
@@ -386,13 +411,20 @@ export class MemberService {
     /**
      * 設置會員資格為過期
      * @param memberId 會員ID
+     * @param associationId 協會ID
      * @param userId 操作者ID
      * @param reason 過期原因（可選）
      * @returns 更新後的會員
      */
-    async expireMembership(memberId: string, userId: string, reason?: string) {
+    async expireMembership(
+        memberId: string,
+        associationId: string,
+        userId: string,
+        reason?: string,
+    ) {
         return this.updateMemberStatus(
             memberId,
+            associationId,
             MembershipStatus.EXPIRED,
             userId,
             reason || '會員資格已過期',
@@ -424,6 +456,7 @@ export class MemberService {
             try {
                 await this.updateMemberStatus(
                     member.id,
+                    member.associationId,
                     MembershipStatus.EXPIRED,
                     'system', // 系統自動操作
                     '會員資格已自動過期（系統檢測到續費日期已過）',
@@ -617,9 +650,9 @@ export class MemberService {
      * @param memberId 會員ID
      * @returns 會員信息
      */
-    async getMemberById(memberId: string) {
+    async getMemberById(userId: string, associationId: string) {
         return this.prisma.associationMember.findUnique({
-            where: { id: memberId },
+            where: { associationId_userId: { associationId, userId } },
             include: {
                 user: {
                     select: {

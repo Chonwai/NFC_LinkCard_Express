@@ -67,11 +67,11 @@ export class MemberController {
 
     /**
      * 更新會員狀態
-     * PATCH /associations/members/:id/status
+     * PATCH /associations/:id/members/:memberId/status
      */
     updateMemberStatus = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
             const userId = req.user?.id;
             if (!userId) {
                 return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
@@ -86,6 +86,7 @@ export class MemberController {
 
             const member = await this.memberService.updateMemberStatus(
                 memberId,
+                associationId,
                 statusDto.status,
                 userId,
                 statusDto.reason,
@@ -300,11 +301,11 @@ export class MemberController {
 
     /**
      * 更新會員角色
-     * PATCH /associations/members/:id/role
+     * PATCH /associations/:id/members/:memberId/role
      */
     updateMemberRole = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
             const { role } = req.body;
             const userId = req.user?.id;
 
@@ -323,12 +324,10 @@ export class MemberController {
             }
 
             // 獲取成員所屬的協會
-            const member = await this.memberService.getMemberById(memberId);
+            const member = await this.memberService.getMemberById(memberId, associationId);
             if (!member) {
                 return ApiResponse.error(res, '會員不存在', 'MEMBER_NOT_FOUND', null, 404);
             }
-
-            const associationId = member.associationId;
 
             // 獲取當前用戶在該協會的角色
             const userRole = await this.memberService.getUserRoleInAssociation(
