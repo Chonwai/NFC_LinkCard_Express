@@ -327,7 +327,7 @@ export class MemberController {
      */
     getMemberHistory = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const memberId = req.params.memberId;
             const history = await this.memberService.getMemberStatusHistory(memberId);
             return ApiResponse.success(res, { history });
         } catch (error) {
