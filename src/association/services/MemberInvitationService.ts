@@ -159,10 +159,12 @@ export class MemberInvitationService {
                 display_name: memberData.name || null,
                 is_verified: false,
                 verification_token: verificationToken,
-                // 初始化邀請數據
+                // 添加明確的來源標記
                 meta: {
                     invitations: [],
-                    // 可以考慮存儲臨時密碼的哈希，以便將來驗證，但更安全的做法是僅依賴激活鏈接
+                    userSource: 'ASSOCIATION_INVITE', // 明確標記用戶創建來源
+                    createDate: new Date().toISOString(),
+                    isTemporaryAccount: true, // 標記這是臨時帳戶
                 },
             },
         });
@@ -222,12 +224,15 @@ export class MemberInvitationService {
         });
 
         // 發送邀請郵件
+        const isNewUserCreatedByInvitation =
+            !user.is_verified && (user.meta as any)?.userSource === 'ASSOCIATION_INVITE';
+
         await this.emailService.sendAssociationInvitation(
             user.email,
             association.name,
             invitationToken,
             customMessage,
-            !user.is_verified, // 是否為新用戶
+            isNewUserCreatedByInvitation, // 更準確的判斷條件
         );
     }
 
@@ -757,14 +762,14 @@ export class MemberInvitationService {
             },
         });
 
-        // 檢查此郵箱是否已有激活的帳戶
-        const existingAccount = await this.prisma.user.findUnique({
-            where: {
-                email: user.email,
-                is_verified: true,
-            },
-        });
-        const hasAccount = !!existingAccount;
+        // 更精確地判斷是否為通過邀請創建的臨時帳戶
+        const isInvitationCreatedUser =
+            ((user.meta as any)?.userSource === 'ASSOCIATION_INVITE' ||
+                (user.meta as any)?.isTemporaryAccount === true) &&
+            !user.is_verified;
+
+        // 反轉邏輯 - 不是臨時帳戶就視為已有帳戶
+        const hasAccount = !isInvitationCreatedUser;
 
         // *** 提取 isBatchCreated 標識 ***
         const isBatchCreatedUser = invitation.isBatchCreated === true; // 默認為 false
