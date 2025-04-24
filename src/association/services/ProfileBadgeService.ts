@@ -103,6 +103,7 @@ export class ProfileBadgeService {
 
     // 獲取個人檔案的所有徽章
     async getProfileBadges(profileId: string): Promise<ProfileBadgeResponseDto[]> {
+        // 獲取所有徽章
         const badges = await this.prisma.profileBadge.findMany({
             where: {
                 profileId,
@@ -122,22 +123,49 @@ export class ProfileBadgeService {
             },
         });
 
-        return badges.map((badge) => ({
-            id: badge.id,
-            profileId: badge.profileId,
-            associationId: badge.associationId,
-            associationName: badge.association.name,
-            associationSlug: badge.association.slug,
-            associationLogo: badge.association.logo || undefined,
-            isVisible: badge.isVisible,
-            displayOrder: badge.displayOrder,
-            customLabel: badge.customLabel || undefined,
-            customColor: badge.customColor || undefined,
-            customSize: badge.customSize || undefined,
-            displayMode: badge.displayMode,
-            createdAt: badge.createdAt,
-            updatedAt: badge.updatedAt,
-        }));
+        // 過濾可顯示的徽章（根據會員狀態）
+        const filteredBadges = await Promise.all(
+            badges.map(async (badge) => {
+                // 檢查該用戶在此協會的會員狀態
+                const member = await this.prisma.associationMember.findFirst({
+                    where: {
+                        associationId: badge.associationId,
+                        user: {
+                            profiles: {
+                                some: {
+                                    id: profileId,
+                                },
+                            },
+                        },
+                    },
+                    select: {
+                        membershipStatus: true,
+                    },
+                });
+
+                // 只有ACTIVE狀態的會員才顯示徽章
+                const isVisible = member?.membershipStatus === 'ACTIVE' ? badge.isVisible : false;
+
+                return {
+                    id: badge.id,
+                    profileId: badge.profileId,
+                    associationId: badge.associationId,
+                    associationName: badge.association.name,
+                    associationSlug: badge.association.slug,
+                    associationLogo: badge.association.logo || undefined,
+                    isVisible: isVisible, // 根據會員狀態設置可見性
+                    displayOrder: badge.displayOrder,
+                    customLabel: badge.customLabel || undefined,
+                    customColor: badge.customColor || undefined,
+                    customSize: badge.customSize || undefined,
+                    displayMode: badge.displayMode,
+                    createdAt: badge.createdAt,
+                    updatedAt: badge.updatedAt,
+                };
+            }),
+        );
+
+        return filteredBadges;
     }
 
     // 批量更新個人檔案徽章
