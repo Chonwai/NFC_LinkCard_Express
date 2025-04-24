@@ -177,6 +177,7 @@ export class MemberInvitationService {
      * @param memberData 成員數據
      * @param customMessage 自定義消息
      * @param isBatchCreated 標識是否由批量流程為新用戶創建
+     * @param isReinvitation 標識是否為重新邀請
      */
     private async createInvitation(
         association: any,
@@ -184,6 +185,7 @@ export class MemberInvitationService {
         memberData: MemberInvitationItemDto,
         customMessage?: string,
         isBatchCreated: boolean = false,
+        isReinvitation: boolean = false,
     ) {
         // 創建邀請令牌
         const invitationToken = crypto.randomBytes(32).toString('hex');
@@ -203,7 +205,7 @@ export class MemberInvitationService {
             userData.invitations = [];
         }
 
-        // 添加新的邀請，包含 isBatchCreated 標識
+        // 添加新的邀請，包含標識
         userData.invitations.push({
             associationId: association.id,
             token: invitationToken,
@@ -211,8 +213,9 @@ export class MemberInvitationService {
             createdAt: new Date().toISOString(),
             expiresAt: new Date(
                 Date.now() + (isBatchCreated ? 14 : 7) * 24 * 60 * 60 * 1000,
-            ).toISOString(), // 批量創建的新用戶有效期14天，已有用戶7天
-            isBatchCreated: isBatchCreated, // *** 存儲標識 ***
+            ).toISOString(),
+            isBatchCreated: isBatchCreated,
+            isReinvitation: isReinvitation,
         });
 
         // 更新用戶
@@ -223,7 +226,7 @@ export class MemberInvitationService {
             },
         });
 
-        // 發送邀請郵件
+        // 發送邀請郵件，根據不同情況選擇模板
         const isNewUserCreatedByInvitation =
             !user.is_verified && (user.meta as any)?.userSource === 'ASSOCIATION_INVITE';
 
@@ -232,7 +235,8 @@ export class MemberInvitationService {
             association.name,
             invitationToken,
             customMessage,
-            isNewUserCreatedByInvitation, // 更準確的判斷條件
+            isNewUserCreatedByInvitation,
+            isReinvitation,
         );
     }
 
@@ -307,47 +311,91 @@ export class MemberInvitationService {
 
         // 處理接受或拒絕邀請
         if (responseType === InvitationResponseType.ACCEPT) {
-            // 檢查用戶是否已是協會成員
-            const existingMember = await this.prisma.associationMember.findUnique({
-                where: {
-                    associationId_userId: {
+            // 檢查是否為重新邀請
+            const isReinvitation = invitation.isReinvitation === true;
+
+            // 檢查是否存在已刪除的會員記錄
+            let existingMember;
+            if (isReinvitation) {
+                // 對於重新邀請，查找包括已刪除的記錄
+                existingMember = await this.prisma.associationMember.findFirst({
+                    where: {
                         associationId: invitation.associationId,
                         userId: userId,
                     },
-                },
-            });
-
-            if (existingMember) {
-                // 用戶已是協會成員，只需更新邀請狀態
-                userData.invitations.splice(invitationIndex, 1);
-                await this.prisma.user.update({
-                    where: { id: userId },
-                    data: { meta: userData },
                 });
-
-                return {
-                    success: true,
-                    action: responseType,
-                    associationId: invitation.associationId,
-                    associationName: association.name,
-                    message: '您已經是此協會的成員',
-                };
+            } else {
+                // 對於普通邀請，只查找活躍記錄
+                existingMember = await this.prisma.associationMember.findUnique({
+                    where: {
+                        associationId_userId: {
+                            associationId: invitation.associationId,
+                            userId: userId,
+                        },
+                    },
+                });
             }
 
-            // 接受邀請 - 創建協會成員記錄
-            await this.prisma.associationMember.create({
-                data: {
-                    associationId: invitation.associationId,
-                    userId: userId,
-                    role: invitation.role as MemberRole,
-                    membershipStatus: MembershipStatus.ACTIVE,
-                    displayInDirectory: true,
-                    meta: {
-                        invitedAt: invitation.createdAt,
-                        acceptedAt: new Date().toISOString(),
+            if (existingMember) {
+                if (isReinvitation) {
+                    // 重新啟用會員記錄
+                    await this.prisma.associationMember.update({
+                        where: { id: existingMember.id },
+                        data: {
+                            membershipStatus: MembershipStatus.ACTIVE,
+                            deleted_at: null,
+                            meta: {
+                                ...(existingMember.meta as any),
+                                reactivatedAt: new Date().toISOString(),
+                                previousTermination: {
+                                    terminatedAt: existingMember.deleted_at,
+                                    status: existingMember.membershipStatus,
+                                },
+                            },
+                        },
+                    });
+
+                    // 記錄重新激活操作
+                    await this.memberHistoryService.logStatusChange(
+                        existingMember.id,
+                        existingMember.membershipStatus,
+                        MembershipStatus.ACTIVE,
+                        userId,
+                        '接受重新邀請，會員資格已恢復',
+                    );
+                } else {
+                    // 一般邀請 - 用戶已是會員，只需移除邀請
+                    userData.invitations.splice(invitationIndex, 1);
+                    await this.prisma.user.update({
+                        where: { id: userId },
+                        data: { meta: userData },
+                    });
+
+                    return {
+                        success: true,
+                        action: responseType,
+                        associationId: invitation.associationId,
+                        associationName: association.name,
+                        message: '您已經是此協會的成員',
+                    };
+                }
+            } else {
+                // 新創建會員關係
+                await this.prisma.associationMember.create({
+                    data: {
+                        associationId: invitation.associationId,
+                        userId: userId,
+                        role: invitation.role as MemberRole,
+                        membershipStatus: MembershipStatus.ACTIVE,
+                        displayInDirectory: true,
+                        meta: {
+                            invitedAt: invitation.createdAt,
+                            acceptedAt: new Date().toISOString(),
+                            isRejoined: isReinvitation,
+                        },
                     },
-                },
-            });
+                });
+            }
         }
 
         // 無論接受或拒絕，都從邀請列表中移除
@@ -788,6 +836,121 @@ export class MemberInvitationService {
             association,
             hasAccount,
             isBatchCreatedUser,
+        };
+    }
+
+    /**
+     * 重新邀請已刪除的會員
+     * @param associationId 協會ID
+     * @param userId 被邀請用戶ID
+     * @param operatorId 操作者ID
+     * @param customMessage 自定義消息
+     * @returns 處理結果
+     */
+    async reInviteDeletedMember(
+        associationId: string,
+        userId: string,
+        operatorId: string,
+        customMessage?: string,
+    ) {
+        // 檢查協會是否存在
+        const association = await this.prisma.association.findUnique({
+            where: { id: associationId },
+            include: { user: true },
+        });
+
+        if (!association) {
+            throw new Error('協會不存在');
+        }
+
+        // 查找用戶
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        if (!user) {
+            throw new Error('用戶不存在');
+        }
+
+        // 檢查操作者權限
+        // ... 權限檢查代碼 ...
+
+        // 檢查用戶是否已是活躍協會成員
+        const existingActiveMember = await this.prisma.associationMember.findFirst({
+            where: {
+                associationId,
+                userId: user.id,
+                membershipStatus: MembershipStatus.ACTIVE,
+                deleted_at: null,
+            },
+        });
+
+        if (existingActiveMember) {
+            throw new Error('用戶已是協會現有成員');
+        }
+
+        // 檢查是否存在已刪除的會員記錄
+        const existingDeletedMember = await this.prisma.associationMember.findFirst({
+            where: {
+                associationId,
+                userId: user.id,
+                OR: [
+                    { membershipStatus: MembershipStatus.TERMINATED },
+                    { deleted_at: { not: null } },
+                ],
+            },
+        });
+
+        if (!existingDeletedMember) {
+            throw new Error('找不到該用戶的已刪除會員記錄');
+        }
+
+        // 準備邀請數據
+        const memberData: MemberInvitationItemDto = {
+            email: user.email,
+            role: existingDeletedMember.role, // 保留原來的角色
+            name: user.display_name || user.username,
+        };
+
+        // 構建自定義消息
+        const defaultMessage = `您之前在「${association.name}」的會員資格已被終止，現在協會邀請您重新加入。`;
+        const finalMessage = customMessage || defaultMessage;
+
+        // 創建邀請並發送邀請郵件
+        await this.createInvitation(
+            association,
+            user,
+            memberData,
+            finalMessage,
+            false,
+            true, // 新增參數：isReinvitation
+        );
+
+        // 記錄重新邀請操作
+        await this.prisma.memberActionLog.create({
+            data: {
+                associationId,
+                targetUserId: userId,
+                actionUserId: operatorId,
+                actionType: 'REINVITE',
+                details: {
+                    previousRole: existingDeletedMember.role,
+                    previousStatus: existingDeletedMember.membershipStatus,
+                    previousDeletedAt: existingDeletedMember.deleted_at,
+                    customMessage: finalMessage,
+                },
+            },
+        });
+
+        return {
+            success: true,
+            email: user.email,
+            message: '重新邀請已發送',
+            previousMembershipDetails: {
+                role: existingDeletedMember.role,
+                membershipStatus: existingDeletedMember.membershipStatus,
+                deletedAt: existingDeletedMember.deleted_at,
+            },
         };
     }
 }

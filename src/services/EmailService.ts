@@ -185,23 +185,31 @@ export class EmailService {
         token: string,
         customMessage?: string,
         isNewUser: boolean = false,
+        isReinvitation: boolean = false,
     ) {
         // 準備模板數據
         const templateData = {
             associationName,
             customMessage: customMessage || `您被邀請加入 ${associationName}`,
             actionUrl: `${process.env.FRONTEND_URL}/join/${token}`,
-            actionText: isNewUser ? '激活帳戶並加入' : '回應邀請',
+            actionText: isNewUser ? '激活帳戶並加入' : isReinvitation ? '重新加入協會' : '回應邀請',
             expiryDays: isNewUser ? 14 : 7,
+            isNewAccount: isNewUser,
+            isReinvitation: isReinvitation,
         };
 
         // 選擇適當的模板
-        const templatePath = isNewUser ? 'new-user-invitation.ejs' : 'existing-user-invitation.ejs';
+        let templatePath = 'existing-user-invitation.ejs';
+        if (isNewUser) {
+            templatePath = 'new-user-invitation.ejs';
+        } else if (isReinvitation) {
+            templatePath = 'reinvite-member.ejs'; // 新增重新邀請專用模板
+        }
 
         // 發送郵件
         return this.sendTemplateEmail(
             email,
-            `邀請您加入 ${associationName}`,
+            isReinvitation ? `邀請您重新加入 ${associationName}` : `邀請您加入 ${associationName}`,
             templatePath,
             templateData,
         );

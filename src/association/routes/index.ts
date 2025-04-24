@@ -9,6 +9,8 @@ import { AffiliationController } from '../controllers/AffiliationController';
 import { MemberInvitationController } from '../controllers/MemberInvitationController';
 import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
 import multer from 'multer';
+import { roleMiddleware } from '../../middleware/role.middleware';
+import { MemberRole } from '../../constants/member-role';
 
 const router = Router();
 
@@ -231,6 +233,14 @@ router.get(
     '/associations/:id/members/by-status',
     authMiddleware, // 如果需要權限控制
     memberController.getMembersByStatus,
+);
+
+// 重新邀請已刪除會員
+router.post(
+    '/associations/:id/members/:userId/reinvite',
+    authMiddleware,
+    roleMiddleware([MemberRole.ADMIN, MemberRole.OWNER]),
+    memberController.reInviteDeletedMember,
 );
 
 export default router;

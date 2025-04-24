@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>邀請您重新加入協會</title>
+    <style>
+        /* 美觀的郵件樣式 */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>重新加入邀請</h1>
+        </div>
+        
+        <div class="content">
+            <p>親愛的用戶：</p>
+            
+            <p>您收到此郵件是因為「<strong><%= associationName %></strong>」邀請您重新加入協會。</p>
+            
+            <% if (customMessage) { %>
+            <div class="message-box">
+                <p><strong>協會留言：</strong></p>
+                <p><%= customMessage %></p>
+            </div>
+            <% } %>
+            
+            <p>您之前的會員資格已被終止，但協會希望您能夠回來。如果您願意重新加入，請點擊下方按鈕：</p>
+            
+            <div class="button-container">
+                <a href="<%= actionUrl %>" class="button"><%= actionText %></a>
+            </div>
+            
+            <p class="note">此邀請將在 <%= expiryDays %> 天後過期。</p>
+        </div>
+        
+        <div class="footer">
+            <p>此郵件由 NFC LinkCard 代表「<%= associationName %>」發送</p>
+            <p>© <%= new Date().getFullYear() %> NFC LinkCard. 保留所有權利。</p>
+        </div>
+    </div>
+</body>
+</html>

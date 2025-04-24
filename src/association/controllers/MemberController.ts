@@ -645,4 +645,41 @@ export class MemberController {
             );
         }
     };
+
+    /**
+     * 重新邀請已刪除會員
+     * POST /associations/:id/members/:userId/reinvite
+     */
+    reInviteDeletedMember = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId, userId } = req.params;
+            const operatorId = req.user?.id;
+
+            if (!operatorId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            // 獲取自定義消息
+            const { customMessage } = req.body;
+
+            // 調用服務層處理重新邀請
+            const result = await this.memberInvitationService.reInviteDeletedMember(
+                associationId,
+                userId,
+                operatorId,
+                customMessage,
+            );
+
+            return ApiResponse.success(res, result);
+        } catch (error: unknown) {
+            console.error('重新邀請會員失敗:', error);
+
+            const message = (error as any)?.message || '重新邀請會員失敗';
+            const code = (error as any)?.code || 'REINVITE_MEMBER_ERROR';
+            const details = (error as any)?.details;
+            const status = (error as any)?.status || 500;
+
+            return ApiResponse.error(res, message, code, details, status);
+        }
+    };
 }
