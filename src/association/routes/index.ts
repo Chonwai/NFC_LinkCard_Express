@@ -9,8 +9,6 @@ import { AffiliationController } from '../controllers/AffiliationController';
 import { MemberInvitationController } from '../controllers/MemberInvitationController';
 import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
 import multer from 'multer';
-import { roleMiddleware } from '../../middleware/role.middleware';
-import { MemberRole } from '../../constants/member-role';
 
 const router = Router();
 
@@ -237,9 +235,8 @@ router.get(
 
 // 重新邀請已刪除會員
 router.post(
-    '/associations/:id/members/:userId/reinvite',
+    '/associations/:id/members/:memberId/reinvite',
     authMiddleware,
-    roleMiddleware([MemberRole.ADMIN, MemberRole.OWNER]),
     memberController.reInviteDeletedMember,
 );
 

@@ -156,7 +156,8 @@ export class MemberService {
     /**
      * 更新會員狀態
      * @param memberId 會員ID
-     * @param status 會員狀態
+     * @param associationId 協會ID
+     * @param newStatus 新狀態
      * @param userId 操作者ID
      * @param reason 狀態變更原因（可選）
      * @returns 更新後的會員
@@ -164,7 +165,7 @@ export class MemberService {
     async updateMemberStatus(
         memberId: string,
         associationId: string,
-        status: MembershipStatus,
+        newStatus: MembershipStatus,
         userId: string,
         reason?: string,
     ) {
@@ -176,29 +177,59 @@ export class MemberService {
             throw new Error('會員不存在');
         }
 
-        // 記錄狀態變更
-        await this.memberHistoryService.logStatusChange(
-            memberId,
-            member.membershipStatus,
-            status,
-            userId,
-            reason,
-        );
+        const currentStatus = member.membershipStatus;
+        const isDeleted = !!member.deleted_at; // 檢查是否已軟刪除
 
-        return this.prisma.associationMember.update({
-            where: { id: memberId, associationId },
-            data: { membershipStatus: status },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        username: true,
-                        display_name: true,
+        // --- *** 關鍵校驗邏輯 *** ---
+        // 1. 禁止直接從 TERMINATED 或軟刪除狀態激活
+        if (
+            (currentStatus === MembershipStatus.TERMINATED || isDeleted) &&
+            (newStatus === MembershipStatus.ACTIVE || newStatus === MembershipStatus.PENDING)
+        ) {
+            throw new Error('無法直接激活已終止或刪除的會員，請使用重新邀請功能。');
+        }
+
+        // 2. (可選) 禁止管理員直接修改 CANCELLED 狀態為 ACTIVE
+        // if (currentStatus === MembershipStatus.CANCELLED && newStatus === MembershipStatus.ACTIVE) {
+        //     throw new Error('用戶已取消資格，如需恢復請重新邀請或由用戶申請。');
+        // }
+
+        // 3. (可選) 針對 EXPIRED 狀態的處理
+        // if (currentStatus === MembershipStatus.EXPIRED && newStatus === MembershipStatus.ACTIVE) {
+        //     // 可能需要檢查是否已續費等業務邏輯
+        //     // throw new Error('會員資格已過期，請先完成續期。');
+        // }
+        // --- *** 校驗結束 *** ---
+
+        // 如果校驗通過，才執行狀態更新和日誌記錄
+        if (currentStatus !== newStatus) {
+            // 記錄狀態變更
+            await this.memberHistoryService.logStatusChange(
+                memberId,
+                currentStatus,
+                newStatus,
+                userId,
+                reason || `管理員將狀態從 ${currentStatus} 更新為 ${newStatus}`,
+            );
+
+            return this.prisma.associationMember.update({
+                where: { id: memberId, associationId },
+                data: { membershipStatus: newStatus },
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            username: true,
+                            display_name: true,
+                        },
                     },
                 },
-            },
-        });
+            });
+        } else {
+            // 如果狀態未改變，可以選擇返回當前會員信息或提示無需更新
+            return member;
+        }
     }
 
     /**

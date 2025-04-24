@@ -11,10 +11,14 @@ import {
 } from '../dtos/member.dto';
 import { MemberService } from '../services/MemberService';
 import { MembershipStatus } from '@prisma/client';
+import { MemberInvitationService } from '../services/MemberInvitationService';
 
 @Service()
 export class MemberController {
-    constructor(private memberService: MemberService) {}
+    constructor(
+        private memberService: MemberService,
+        private memberInvitationService: MemberInvitationService,
+    ) {}
 
     /**
      * 獲取協會會員列表
@@ -648,11 +652,11 @@ export class MemberController {
 
     /**
      * 重新邀請已刪除會員
-     * POST /associations/:id/members/:userId/reinvite
+     * POST /associations/:id/members/:memberId/reinvite
      */
     reInviteDeletedMember = async (req: Request, res: Response) => {
         try {
-            const { id: associationId, userId } = req.params;
+            const { id: associationId, memberId } = req.params;
             const operatorId = req.user?.id;
 
             if (!operatorId) {
@@ -665,7 +669,7 @@ export class MemberController {
             // 調用服務層處理重新邀請
             const result = await this.memberInvitationService.reInviteDeletedMember(
                 associationId,
-                userId,
+                memberId,
                 operatorId,
                 customMessage,
             );
