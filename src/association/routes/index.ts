@@ -55,10 +55,25 @@ router.post('/associations/:id/members', authMiddleware, memberController.addMem
 router.put('/associations/:id/members/:memberId', authMiddleware, memberController.updateMember);
 router.delete('/associations/:id/members/:memberId', authMiddleware, memberController.removeMember);
 
+// 添加獲取已刪除會員列表路由
+router.get('/associations/:id/deleted-members', authMiddleware, memberController.getDeletedMembers);
+
 // 會員狀態管理路由 (從routes.ts遷移)
-router.patch('/members/:id/status', authMiddleware, memberController.updateMemberStatus);
-router.patch('/members/:id/role', authMiddleware, memberController.updateMemberRole);
-router.patch('/members/:id/visibility', authMiddleware, memberController.updateDirectoryVisibility);
+router.patch(
+    '/associations/:id/members/:memberId/status',
+    authMiddleware,
+    memberController.updateMemberStatus,
+);
+router.patch(
+    '/associations/:id/members/:memberId/role',
+    authMiddleware,
+    memberController.updateMemberRole,
+);
+router.patch(
+    '/associations/:id/members/:memberId/visibility',
+    authMiddleware,
+    memberController.updateDirectoryVisibility,
+);
 
 // 用戶協會關係 (從routes.ts遷移)
 router.get('/my-associations', authMiddleware, memberController.getUserAssociations);
@@ -146,16 +161,39 @@ router.patch(
 );
 router.delete('/associations/:id/members/:memberId', authMiddleware, memberController.removeMember);
 
-// 會員歷史和恢復功能
-router.get('/associations/:id/deleted-members', authMiddleware, memberController.getDeletedMembers);
-router.get('/associations/members/:id/history', authMiddleware, memberController.getMemberHistory);
-router.post('/associations/members/:id/restore', authMiddleware, memberController.restoreMember);
+// 會員歷史和恢復功能 - 更新路徑格式
+router.get(
+    '/associations/:id/members/:memberId/history',
+    authMiddleware,
+    memberController.getMemberHistory,
+);
+router.post(
+    '/associations/:id/members/:memberId/restore',
+    authMiddleware,
+    memberController.restoreMember,
+);
 
-// 會員狀態管理
-router.patch('/associations/members/:id/suspend', authMiddleware, memberController.suspendMember);
-router.patch('/associations/members/:id/activate', authMiddleware, memberController.activateMember);
-router.patch('/associations/members/:id/cancel', authMiddleware, memberController.cancelMembership);
-router.post('/associations/members/:id/renew', authMiddleware, memberController.renewMembership);
+// 會員狀態管理 - 更新路徑格式
+router.patch(
+    '/associations/:id/members/:memberId/suspend',
+    authMiddleware,
+    memberController.suspendMember,
+);
+router.patch(
+    '/associations/:id/members/:memberId/activate',
+    authMiddleware,
+    memberController.activateMember,
+);
+router.patch(
+    '/associations/:id/members/:memberId/cancel',
+    authMiddleware,
+    memberController.cancelMembership,
+);
+router.post(
+    '/associations/:id/members/:memberId/renew',
+    authMiddleware,
+    memberController.renewMembership,
+);
 
 // 系統管理功能
 router.post(
@@ -174,6 +212,13 @@ router.get(
     '/associations/:id/check-membership',
     authMiddleware,
     associationController.checkMembership,
+);
+
+// 按狀態獲取會員列表
+router.get(
+    '/associations/:id/members/by-status',
+    authMiddleware, // 如果需要權限控制
+    memberController.getMembersByStatus,
 );
 
 export default router;

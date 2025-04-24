@@ -147,40 +147,12 @@ export class MemberController {
     };
 
     /**
-     * 恢復已刪除會員
-     * POST /associations/members/:id/restore
-     */
-    restoreMember = async (req: Request, res: Response) => {
-        try {
-            const memberId = req.params.id;
-            const userId = req.user?.id;
-            const { reason } = req.body;
-
-            if (!userId) {
-                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
-            }
-
-            const member = await this.memberService.restoreMember(memberId, userId, reason);
-            return ApiResponse.success(res, { member });
-        } catch (error) {
-            console.error('恢復會員失敗:', error);
-            return ApiResponse.error(
-                res,
-                '恢復會員失敗',
-                'RESTORE_MEMBER_ERROR',
-                (error as Error).message,
-                500,
-            );
-        }
-    };
-
-    /**
      * 暫停會員資格
-     * PATCH /associations/members/:id/suspend
+     * PATCH /associations/:id/members/:memberId/suspend
      */
     suspendMember = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
             const userId = req.user?.id;
             const { reason } = req.body;
 
@@ -188,7 +160,12 @@ export class MemberController {
                 return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
             }
 
-            const member = await this.memberService.suspendMember(memberId, userId, reason);
+            const member = await this.memberService.suspendMember(
+                memberId,
+                associationId,
+                userId,
+                reason,
+            );
             return ApiResponse.success(res, { member });
         } catch (error) {
             console.error('暫停會員失敗:', error);
@@ -204,11 +181,11 @@ export class MemberController {
 
     /**
      * 激活會員資格
-     * PATCH /associations/members/:id/activate
+     * PATCH /associations/:id/members/:memberId/activate
      */
     activateMember = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
             const userId = req.user?.id;
             const { reason } = req.body;
 
@@ -216,7 +193,12 @@ export class MemberController {
                 return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
             }
 
-            const member = await this.memberService.activateMembership(memberId, userId, reason);
+            const member = await this.memberService.activateMembership(
+                memberId,
+                associationId,
+                userId,
+                reason,
+            );
             return ApiResponse.success(res, { member });
         } catch (error) {
             console.error('激活會員失敗:', error);
@@ -232,11 +214,11 @@ export class MemberController {
 
     /**
      * 取消會員資格
-     * PATCH /associations/members/:id/cancel
+     * PATCH /associations/:id/members/:memberId/cancel
      */
     cancelMembership = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
+            const { id: associationId, memberId } = req.params;
             const userId = req.user?.id;
             const { reason } = req.body;
 
@@ -244,7 +226,12 @@ export class MemberController {
                 return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
             }
 
-            const member = await this.memberService.cancelMembership(memberId, userId, reason);
+            const member = await this.memberService.cancelMembership(
+                memberId,
+                associationId,
+                userId,
+                reason,
+            );
             return ApiResponse.success(res, { member });
         } catch (error) {
             console.error('取消會員資格失敗:', error);
@@ -252,6 +239,82 @@ export class MemberController {
                 res,
                 '取消會員資格失敗',
                 'CANCEL_MEMBERSHIP_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 恢復已刪除會員
+     * POST /associations/:id/members/:memberId/restore
+     */
+    restoreMember = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId, memberId } = req.params;
+            const userId = req.user?.id;
+            const { reason } = req.body;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            const member = await this.memberService.restoreMember(
+                memberId,
+                associationId,
+                userId,
+                reason,
+            );
+            return ApiResponse.success(res, { member });
+        } catch (error) {
+            console.error('恢復會員失敗:', error);
+            return ApiResponse.error(
+                res,
+                '恢復會員失敗',
+                'RESTORE_MEMBER_ERROR',
+                (error as Error).message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 會員續費
+     * POST /associations/:id/members/:memberId/renew
+     */
+    renewMembership = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId, memberId } = req.params;
+            const userId = req.user?.id;
+            const { months, reason } = req.body;
+
+            if (!userId) {
+                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            }
+
+            if (!months || typeof months !== 'number' || months <= 0) {
+                return ApiResponse.error(
+                    res,
+                    '無效的續費月數',
+                    'INVALID_MONTHS',
+                    '月數必須是正整數',
+                    400,
+                );
+            }
+
+            const member = await this.memberService.renewMembership(
+                memberId,
+                months,
+                userId,
+                reason,
+            );
+            return ApiResponse.success(res, { member });
+        } catch (error) {
+            console.error('會員續費失敗:', error);
+            return ApiResponse.error(
+                res,
+                '會員續費失敗',
+                'RENEW_MEMBERSHIP_ERROR',
                 (error as Error).message,
                 500,
             );
@@ -523,42 +586,60 @@ export class MemberController {
     };
 
     /**
-     * 會員續費
-     * POST /associations/members/:id/renew
+     * 獲取特定狀態的會員列表
+     * GET /associations/:id/members/by-status?status=STATUS1,STATUS2,...
      */
-    renewMembership = async (req: Request, res: Response) => {
+    getMembersByStatus = async (req: Request, res: Response) => {
         try {
-            const memberId = req.params.id;
-            const userId = req.user?.id;
-            const { months, reason } = req.body;
+            const associationId = req.params.id;
 
-            if (!userId) {
-                return ApiResponse.error(res, '未授權', 'UNAUTHORIZED', null, 401);
+            // 解析狀態參數，可以是單一狀態或逗號分隔的多個狀態
+            let statuses: MembershipStatus[] | undefined = undefined;
+            const statusParam = req.query.status as string;
+
+            if (statusParam) {
+                if (statusParam.includes(',')) {
+                    // 多個狀態，以逗號分隔
+                    statuses = statusParam.split(',') as MembershipStatus[];
+
+                    // 驗證狀態值是否有效
+                    const validStatuses = Object.values(MembershipStatus);
+                    const invalidStatuses = statuses.filter(
+                        (s) => !validStatuses.includes(s as any),
+                    );
+
+                    if (invalidStatuses.length > 0) {
+                        return ApiResponse.error(
+                            res,
+                            `無效的狀態值: ${invalidStatuses.join(', ')}`,
+                            'INVALID_STATUS',
+                            `有效的狀態值為: ${validStatuses.join(', ')}`,
+                            400,
+                        );
+                    }
+                } else {
+                    // 單一狀態
+                    if (!Object.values(MembershipStatus).includes(statusParam as any)) {
+                        return ApiResponse.error(
+                            res,
+                            '無效的狀態值',
+                            'INVALID_STATUS',
+                            `有效的狀態值為: ${Object.values(MembershipStatus).join(', ')}`,
+                            400,
+                        );
+                    }
+                    statuses = [statusParam as MembershipStatus];
+                }
             }
 
-            if (!months || typeof months !== 'number' || months <= 0) {
-                return ApiResponse.error(
-                    res,
-                    '無效的續費月數',
-                    'INVALID_MONTHS',
-                    '月數必須是正整數',
-                    400,
-                );
-            }
-
-            const member = await this.memberService.renewMembership(
-                memberId,
-                months,
-                userId,
-                reason,
-            );
-            return ApiResponse.success(res, { member });
+            const members = await this.memberService.getMembersByStatus(associationId, statuses);
+            return ApiResponse.success(res, { members });
         } catch (error) {
-            console.error('會員續費失敗:', error);
+            console.error('獲取會員列表失敗:', error);
             return ApiResponse.error(
                 res,
-                '會員續費失敗',
-                'RENEW_MEMBERSHIP_ERROR',
+                '獲取會員列表失敗',
+                'GET_MEMBERS_BY_STATUS_ERROR',
                 (error as Error).message,
                 500,
             );

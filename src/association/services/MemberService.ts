@@ -856,4 +856,53 @@ export class MemberService {
             data: { displayInDirectory },
         });
     }
+
+    /**
+     * 獲取特定狀態的會員列表
+     * @param associationId 協會ID
+     * @param status 會員狀態（可選，不提供則獲取所有狀態）
+     * @returns 符合條件的會員列表
+     */
+    async getMembersByStatus(
+        associationId: string,
+        status?: MembershipStatus | MembershipStatus[],
+    ) {
+        const where: any = {
+            associationId,
+        };
+
+        // 如果提供了狀態參數，則進行篩選
+        if (status) {
+            if (Array.isArray(status)) {
+                // 如果是狀態數組，使用 IN 查詢
+                where.membershipStatus = {
+                    in: status,
+                };
+            } else {
+                // 單一狀態
+                where.membershipStatus = status;
+            }
+        }
+
+        // 獲取符合條件的會員
+        const members = await this.prisma.associationMember.findMany({
+            where,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        return members;
+    }
 }
