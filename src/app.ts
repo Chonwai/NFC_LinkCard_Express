@@ -49,7 +49,8 @@ app.use(
         maxAge: 86400,
     }),
 );
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 app.use('/api/profiles', profileRoutes);
 app.use('/api/links', linkRoutes);

@@ -13,7 +13,19 @@ import multer from 'multer';
 const router = Router();
 
 // 設置multer - 使用內存存儲
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 限制上傳大小為 5MB
+    },
+    fileFilter: (req, file, cb) => {
+        // 只允許圖片文件
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('只允許上傳圖片文件'));
+        }
+        cb(null, true);
+    },
+});
 
 // 獲取控制器實例
 const associationController = Container.get(AssociationController);
