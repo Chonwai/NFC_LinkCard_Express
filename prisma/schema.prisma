@@ -11,8 +11,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_MIGRATION_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // 普通操作用，可以用連接池
+  directUrl = env("POSTGRES_MIGRATION_URL") // migration用，必須直接連接
 }
 
 model User {
@@ -161,13 +162,13 @@ enum MembershipTier {
 }
 
 enum MembershipStatus {
-  ACTIVE     // 活躍會員
-  INACTIVE   // 非活躍會員
-  PENDING    // 待批准
-  EXPIRED    // 會員已過期
-  SUSPENDED  // 會員已暫停（例如違反規定）
+  ACTIVE // 活躍會員
+  INACTIVE // 非活躍會員
+  PENDING // 待批准
+  EXPIRED // 會員已過期
+  SUSPENDED // 會員已暫停（例如違反規定）
   TERMINATED // 會員已終止（例如由管理員終止）
-  CANCELLED  // 會員自行取消
+  CANCELLED // 會員自行取消
 }
 
 model Association {
@@ -220,7 +221,7 @@ model AssociationMember {
   position           String? // 在協會中的職位
   joinDate           DateTime  @default(now()) @map("join_date")
   renewalDate        DateTime? @map("renewal_date") // 會員續費日期
-  deleted_at         DateTime? @map("deleted_at")   // 軟刪除時間戳
+  deleted_at         DateTime? @map("deleted_at") // 軟刪除時間戳
 
   meta Json? @default("{}")
 
@@ -311,15 +312,15 @@ enum BadgeDisplayMode {
 
 // 新增會員歷史記錄模型
 model MembershipHistory {
-  id                  String           @id @default(uuid())
-  association_member_id String           @map("association_member_id")
-  associationMember   AssociationMember @relation(fields: [association_member_id], references: [id], onDelete: Cascade)
-  previous_status     MembershipStatus  @map("previous_status")
-  new_status          MembershipStatus  @map("new_status")
-  changed_by          String            @map("changed_by")  // 用戶ID
-  reason              String?
-  created_at          DateTime          @default(now()) @map("created_at")
-  
+  id                    String            @id @default(uuid())
+  association_member_id String            @map("association_member_id")
+  associationMember     AssociationMember @relation(fields: [association_member_id], references: [id], onDelete: Cascade)
+  previous_status       MembershipStatus  @map("previous_status")
+  new_status            MembershipStatus  @map("new_status")
+  changed_by            String            @map("changed_by") // 用戶ID
+  reason                String?
+  created_at            DateTime          @default(now()) @map("created_at")
+
   @@index([association_member_id])
   @@map("membership_history")
 }
