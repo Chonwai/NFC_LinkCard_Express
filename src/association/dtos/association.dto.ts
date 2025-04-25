@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsBoolean, IsUrl, IsEmail, IsPhoneNumber } from 'class-validator';
+import {
+    IsString,
+    IsOptional,
+    IsBoolean,
+    IsUrl,
+    IsEmail,
+    IsPhoneNumber,
+    ValidateIf,
+} from 'class-validator';
 
 export class CreateAssociationDto {
     @IsOptional()
@@ -30,7 +38,8 @@ export class CreateAssociationDto {
     email?: string;
 
     @IsOptional()
-    @IsPhoneNumber()
+    @IsPhoneNumber(undefined, { message: '請提供有效的電話號碼格式，或留空' })
+    @ValidateIf((o) => o.phone !== '' && o.phone !== null && o.phone !== undefined)
     phone?: string;
 
     @IsOptional()
