@@ -1,12 +1,15 @@
 import { Router } from 'express';
+import authRoutes from './auth';
+import profileRoutes from './profiles';
 import linkRoutes from './links';
-
+import userRoutes from './users';
+import leadRoutes from './leads';
 const router = Router();
 
+router.use('/auth', authRoutes);
+router.use('/profiles', profileRoutes);
 router.use('/links', linkRoutes);
-
-// 之後可以添加更多路由
-// router.use('/cards', cardRoutes);
-// router.use('/analytics', analyticsRoutes);
+router.use('/users', userRoutes);
+router.use('/leads', leadRoutes);
 
 export default router;

@@ -1,0 +1,222 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express 專案結構與設計模式
+
+## 專案概述
+
+NFC LinkCard Express 是一個基於 Express.js 和 TypeScript 的 RESTful API 服務，提供 NFC 名片管理和分享功能。本文檔詳細說明了專案的結構和採用的設計模式，以便開發人員能夠快速理解和貢獻代碼。
+
+## 設計模式與架構
+
+### 主要設計模式
+
+1. **分層架構 (Layered Architecture)**
+   - 將應用程序分為不同的職責層，每層只與相鄰層交互
+   - 提高模塊化和可替換性
+
+2. **依賴注入 (Dependency Injection)**
+   - 使用 TypeDI 框架實現
+   - 減少模塊間耦合度
+   - 便於測試和替換實現
+
+3. **數據傳輸對象 (DTO Pattern)**
+   - 使用專門的 DTO 類處理請求和響應數據
+   - 通過 class-validator 和 class-transformer 實現數據驗證和轉換
+
+4. **倉儲模式 (Repository Pattern)**
+   - 通過 Prisma ORM 實現
+   - 封裝數據庫訪問邏輯
+
+5. **單例模式 (Singleton Pattern)**
+   - 用於配置、連接池等全局服務
+
+## 目錄結構
+
+```
+/
+├── src/                          # 源代碼目錄
+│   ├── controllers/              # 控制器層：處理 HTTP 請求和響應
+│   ├── services/                 # 服務層：實現業務邏輯
+│   ├── dtos/                     # 數據傳輸對象：請求和響應模型
+│   ├── middlewares/              # 中間件：認證、日誌、錯誤處理等
+│   ├── utils/                    # 工具函數和幫助類
+│   ├── types/                    # TypeScript 類型定義
+│   ├── routes/                   # 路由定義和配置
+│   ├── lib/                      # 第三方庫配置和適配器
+│   ├── storage/                  # 存儲提供者實現
+│   ├── config/                   # 應用配置
+│   ├── app.ts                    # 應用入口
+│   └── server.ts                 # 服務器配置和啟動
+├── prisma/                       # Prisma ORM 配置和遷移
+│   ├── schema.prisma             # 數據庫模型定義
+│   └── migrations/               # 數據庫遷移腳本
+├── tests/                        # 測試目錄
+│   ├── unit/                     # 單元測試
+│   ├── integration/              # 集成測試
+│   └── e2e/                      # 端到端測試
+├── docs/                         # 文檔目錄
+├── scripts/                      # 工具腳本和任務
+├── .env                          # 環境變量
+├── .env.example                  # 環境變量示例
+├── package.json                  # 項目依賴和腳本
+├── tsconfig.json                 # TypeScript 配置
+└── README.md                     # 項目說明
+```
+
+## 數據流
+
+1. **請求處理流程**:
+   ```
+   HTTP 請求 → 中間件 → 路由 → 控制器 → 服務 → 數據訪問 → 數據庫
+   ```
+
+2. **響應流程**:
+   ```
+   數據庫 → 數據訪問 → 服務 → 控制器 → HTTP 響應
+   ```
+
+## 各層職責詳解
+
+### 1. 控制器層 (Controllers)
+
+控制器負責處理 HTTP 請求，並將業務邏輯委託給服務層。職責包括：
+
+- 解析請求參數
+- 驗證輸入數據
+- 調用適當的服務
+- 格式化響應
+- 錯誤處理
+
+控制器不應包含業務邏輯或數據訪問代碼。
+
+**規範**:
+- 一個控制器對應一個資源或相關資源組
+- 方法名應反映 HTTP 動詞和資源操作
+- 使用 DTO 進行數據驗證
+
+```typescript
+@Service()
+export class UserController {
+    constructor(private readonly userService: UserService) {}
+    
+    async getUser(req: Request, res: Response) {
+        const user = await this.userService.findById(req.params.id);
+        return ApiResponse.success(res, { user });
+    }
+}
+```
+
+### 2. 服務層 (Services)
+
+服務層實現業務邏輯，協調多個操作和事務。職責包括：
+
+- 實現核心業務邏輯
+- 協調多個數據源操作
+- 處理事務和一致性
+- 執行業務規則驗證
+- 處理業務異常
+
+**規範**:
+- 服務方法應該是事務性的
+- 不應直接處理 HTTP 請求或響應
+- 應拋出業務異常而非技術異常
+
+```typescript
+@Service()
+export class UserService {
+    constructor(private readonly prisma: PrismaClient) {}
+    
+    async findById(id: string) {
+        const user = await this.prisma.user.findUnique({ where: { id } });
+        if (!user) throw new ApiError("User not found", "USER_NOT_FOUND", 404);
+        return user;
+    }
+}
+```
+
+### 3. 數據傳輸對象 (DTOs)
+
+DTO 用於封裝請求和響應數據，提供驗證規則。職責包括：
+
+- 定義請求數據格式
+- 提供數據驗證規則
+- 實現類型安全
+
+**規範**:
+- 使用類而非接口
+- 使用裝飾器進行驗證
+- 按資源和操作類型組織
+
+```typescript
+export class CreateUserDto {
+    @IsEmail()
+    email: string;
+    
+    @IsString()
+    @Length(3, 20)
+    username: string;
+    
+    @IsString()
+    @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/)
+    password: string;
+}
+```
+
+### 4. 數據訪問層
+
+通過 Prisma ORM 實現，負責處理所有數據庫操作。職責包括：
+
+- 執行 CRUD 操作
+- 優化查詢性能
+- 處理數據映射
+
+### 5. 中間件 (Middlewares)
+
+中間件處理橫切關注點，如認證、日誌、錯誤處理等。
+
+**主要中間件**:
+- 認證中間件
+- 錯誤處理中間件
+- 日誌中間件
+- 請求驗證中間件
+
+## 模塊依賴關係
+
+```
+控制器 → 服務 → 數據訪問
+  ↓
+中間件 ← 路由
+  ↓
+工具類和幫助函數
+```
+
+## 測試策略
+
+1. **單元測試**: 測試獨立組件，如服務、控制器等
+2. **集成測試**: 測試組件間協作，如控制器和服務
+3. **端到端測試**: 測試完整流程
+
+## 部署流程
+
+1. 代碼提交到版本控制
+2. CI/CD 流水線構建和測試
+3. 生成生產構建
+4. 部署到目標環境
+
+## 擴展建議
+
+1. **模塊化**: 按業務域劃分代碼，而不僅僅按技術層
+2. **微服務**: 考慮將大模塊拆分為獨立服務
+3. **緩存**: 增加分佈式緩存提升性能
+4. **搜索**: 集成全文搜索引擎
+5. **監控**: 實現全面監控和告警系統
+
+## 參考資源
+
+- [Express.js 最佳實踐](mdc:https:/expressjs.com/en/advanced/best-practice-performance.html)
+- [TypeScript 官方文檔](mdc:https:/www.typescriptlang.org/docs)
+- [Prisma 文檔](mdc:https:/www.prisma.io/docs)
+- [NodeJS 設計模式](mdc:https:/github.com/PacktPublishing/Node.js-Design-Patterns-Third-Edition) 

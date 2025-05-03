@@ -1,7 +1,9 @@
 # 環境變數
 .env
+.env.example
 .env.local
 .env.development
+.env.staging
 .env.production
 
 # node_modules
@@ -11,3 +13,11 @@ node_modules
 .DS_Store
 .cursorignore
 *.log
+
+# build
+build
+dist
+.vercel
+
+# cursor
+.cursorignore

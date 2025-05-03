@@ -1,20 +1,40 @@
 {
-  "compilerOptions": {
-    "target": "es2017",
-    "module": "commonjs",
-    "lib": ["es2017", "esnext.asynciterable"],
-    "typeRoots": ["./node_modules/@types"],
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "moduleResolution": "node",
-    "rootDir": "src",
-    "outDir": "dist",
-    "strict": true,
-    "strictPropertyInitialization": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-} 
+    "compilerOptions": {
+        "target": "es2017",
+        "module": "commonjs",
+        "lib": [
+            "es2017",
+            "esnext.asynciterable"
+        ],
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types",
+            "./src/types/**"
+        ],
+        "types": [
+            "node",
+            "express"
+        ],
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "moduleResolution": "node",
+        "rootDir": "src",
+        "outDir": "dist",
+        "strict": true,
+        "strictPropertyInitialization": false,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true
+    },
+    "include": [
+        "src/**/*",
+        "src/types/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
+    ],
+    "files": [
+        "src/types/express.d.ts"
+    ]
+}
