@@ -1,0 +1,171 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - 項目概覽
+
+## 項目性質
+NFC LinkCard Express 是一個基於 Express.js + TypeScript 的數位名片管理 API 服務，提供 RESTful API 供前端應用使用。
+
+## 核心功能
+
+### 用戶系統
+- 用戶註冊/登入/電子郵件驗證
+- JWT 身份認證和授權
+- 密碼重設功能
+- 用戶個人資料管理
+
+### 檔案管理（核心功能）
+- 創建多個個人檔案（數位名片）
+- 每個檔案有唯一的公開 URL（slug）
+- 檔案封面圖片上傳和管理
+- 檔案公開/私密設置
+- 自定義域名支援
+- 檔案主題和外觀自定義
+
+### 連結管理
+- 添加社交媒體連結（GitHub, LinkedIn, Instagram 等）
+- 創建自定義連結
+- 連結排序和啟用/禁用控制
+- 連結點擊統計
+
+### 分析系統
+- 訪客行為追蹤
+- 地理位置和設備統計
+- 連結點擊分析
+- 用戶代理資訊收集
+
+### 潛在客戶管理
+- 自定義聯繫表單設置
+- 潛在客戶數據收集和管理
+- 潛在客戶資料導出
+
+### 協會功能
+- 協會創建和管理
+- 成員管理和權限控制
+- 協會徽章系統
+- 協會分析報告
+
+## 技術架構
+
+### 技術棧
+- **後端**: Node.js 18.x + Express.js + TypeScript
+- **數據庫**: PostgreSQL + Prisma ORM
+- **認證**: JWT + bcrypt
+- **文件存儲**: Vercel Blob
+- **郵件服務**: Nodemailer
+- **依賴注入**: TypeDI
+- **數據驗證**: class-validator + class-transformer
+
+### 架構模式
+```
+分層架構：
+Routes → Controllers → Services → Database (Prisma)
+```
+
+### 項目結構
+參考主要目錄：
+- [src/controllers/](mdc:src/controllers) - HTTP 請求處理
+- [src/services/](mdc:src/services) - 業務邏輯實現
+- [src/routes/](mdc:src/routes) - API 路由定義
+- [src/dtos/](mdc:src/dtos) - 數據傳輸對象
+- [src/middleware/](mdc:src/middleware) - 中間件
+- [prisma/schema.prisma](mdc:prisma/schema.prisma) - 數據庫模型
+
+### 核心配置文件
+- [package.json](mdc:package.json) - 依賴和腳本配置
+- [tsconfig.json](mdc:tsconfig.json) - TypeScript 配置
+- [src/app.ts](mdc:src/app.ts) - 應用主入口
+
+## API 設計
+
+### 主要路由模塊
+- `/api/auth` - 認證相關 API
+- `/api/users` - 用戶管理 API
+- `/api/profiles` - 檔案管理 API（核心）
+- `/api/links` - 連結管理 API
+- `/api/analytics` - 分析統計 API
+- `/api/leads` - 潛在客戶 API
+- `/api/association` - 協會管理 API
+
+### 核心業務流程
+1. 用戶註冊並驗證電子郵件
+2. 創建個人檔案（數位名片）
+3. 添加社交媒體和自定義連結
+4. 設置檔案為公開並獲得可分享的 URL
+5. 他人訪問 URL 時系統記錄分析數據
+
+## 數據模型
+
+### 主要實體
+- **User**: 用戶基本資訊和認證
+- **Profile**: 個人檔案（數位名片）
+- **Link**: 連結資訊和統計
+- **Analytics**: 訪問分析數據
+- **Lead**: 潛在客戶資訊
+- **Association**: 協會組織資訊
+- **AssociationMember**: 協會成員關係
+
+### 關鍵關係
+- 一個用戶可以有多個檔案
+- 一個檔案可以有多個連結
+- 所有訪問都會記錄到分析表
+- 協會可以有多個成員
+
+## 開發環境
+
+### 環境配置
+項目支持多環境配置：
+- `yarn dev:local` - 本地開發環境
+- `yarn dev:dev` - 開發環境
+- `yarn dev:staging` - 測試環境
+- `yarn dev:prod` - 生產環境
+
+### 數據庫操作
+- `yarn prisma:migrate:local` - 本地數據庫遷移
+- `yarn prisma:studio:local` - 本地數據庫管理界面
+- `yarn db:seed` - 數據庫種子數據
+
+### 代碼規範
+- TypeScript 嚴格模式
+- ESLint + Prettier 代碼格式化
+- Husky + lint-staged 提交前檢查
+
+## 部署架構
+
+### 目標平台
+- **生產環境**: Vercel
+- **數據庫**: PostgreSQL（支援遷移）
+- **文件存儲**: Vercel Blob
+- **域名**: 支援多個前端域名的 CORS 配置
+
+### 前端集成
+API 服務支援多個前端應用：
+- link-card-frontend.vercel.app
+- nfc-link-card-next-js.vercel.app
+- link-card.xyz（主域名）
+
+## 安全性
+
+### 認證機制
+- JWT 令牌認證
+- bcrypt 密碼加密
+- 電子郵件驗證流程
+
+### 數據保護
+- 輸入數據驗證（class-validator）
+- CORS 配置限制
+- 文件上傳大小限制（5MB）
+- HTTPS 強制使用
+
+## 監控和文檔
+
+### API 文檔
+- Swagger/OpenAPI 文檔集成
+- 訪問路徑：`/api-docs`
+
+### 開發工具
+- Prisma Studio 數據庫管理
+- 多環境配置支援
+- 熱重載開發服務器
