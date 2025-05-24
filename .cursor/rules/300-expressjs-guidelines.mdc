@@ -1,0 +1,935 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - Express.js 使用指南
+
+## 目錄
+
+- [介紹與概述](mdc:#介紹與概述)
+- [Express.js 配置與設置](mdc:#expressjs-配置與設置)
+- [中間件使用與自定義](mdc:#中間件使用與自定義)
+- [路由設計與組織](mdc:#路由設計與組織)
+- [控制器模式與實現](mdc:#控制器模式與實現)
+- [請求數據處理與驗證](mdc:#請求數據處理與驗證)
+- [錯誤處理與響應格式化](mdc:#錯誤處理與響應格式化)
+- [文件上傳處理](mdc:#文件上傳處理)
+- [API 文檔與 Swagger 集成](mdc:#api-文檔與-swagger-集成)
+- [安全性考慮](mdc:#安全性考慮)
+- [性能優化建議](mdc:#性能優化建議)
+- [常見問題與解決方案](mdc:#常見問題與解決方案)
+
+## 介紹與概述
+
+本文檔提供 NFC LinkCard Express 專案中 Express.js 框架的使用指南與最佳實踐。該指南適用於新加入專案的工程師，幫助快速理解專案的 Express.js 實現方式和設計模式。
+
+### 技術棧概述
+
+NFC LinkCard Express 使用以下與 Express.js 相關的技術：
+
+- **Express.js** (v4.21.x): 核心 Web 應用框架
+- **TypeScript** (v5.x): 提供類型安全和更好的開發體驗
+- **cors**: 處理跨域資源共享
+- **multer**: 處理文件上傳
+- **swagger-jsdoc/swagger-ui-express**: API 文檔生成
+- **class-validator/class-transformer**: 請求數據驗證和轉換
+- **TypeDI**: 依賴注入框架
+
+### 架構概述
+
+專案採用分層架構設計：
+
+```
+客戶端請求 → 中間件 → 路由 → 控制器 → 服務 → 數據訪問
+```
+
+- **中間件層**: 處理通用功能(認證、日誌、CORS等)
+- **路由層**: 定義 API 端點
+- **控制器層**: 處理 HTTP 請求和響應
+- **服務層**: 實現業務邏輯
+- **數據訪問層**: 通過 Prisma ORM 訪問數據庫
+
+## Express.js 配置與設置
+
+### 基本應用配置
+
+Express.js 應用在 `src/app.ts` 中進行配置和初始化：
+
+```typescript
+// app.ts 中的基本配置
+import express from 'express';
+import cors from 'cors';
+import routes from './routes';
+
+const app = express();
+
+// 配置 CORS
+app.use(cors({
+    origin: [...允許的來源列表...],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
+    credentials: true,
+    maxAge: 86400,
+}));
+
+// 配置請求體解析
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// 註冊路由
+app.use('/api', routes);
+// ... 其他路由註冊
+
+// 啟動服務器
+app.listen(3020, () => {
+    console.log('Server is running on port 3020');
+});
+```
+
+### 環境配置
+
+專案支持多環境配置，通過 `NODE_ENV` 和 `.env` 文件進行設置：
+
+```json
+// package.json 中的環境腳本
+"scripts": {
+  "dev:local": "NODE_ENV=local nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.local",
+  "dev:dev": "NODE_ENV=development nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.development",
+  "dev:staging": "NODE_ENV=staging nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.staging",
+  "dev:prod": "NODE_ENV=production nodemon --exec ts-node -r dotenv/config src/app.ts dotenv_config_path=.env.production"
+}
+```
+
+### 推薦做法
+
+✅ **環境變量使用**：
+- 使用 `.env` 文件存儲配置，並通過 `dotenv` 加載
+- 不同環境使用不同的環境變量文件
+- 敏感信息(如數據庫憑證、API密鑰)僅通過環境變量傳遞
+
+✅ **配置分離**：
+- 將配置邏輯與應用邏輯分離
+- 使用專門的配置模塊或文件
+
+⚠️ **注意事項**：
+- 確保環境變量有適當的默認值，避免未定義錯誤
+- 不要在代碼中硬編碼配置值
+- 考慮使用配置驗證機制確保所有必需配置都存在
+
+## 中間件使用與自定義
+
+### 內置中間件
+
+專案使用以下 Express.js 內置中間件：
+
+```typescript
+// 處理 JSON 請求體
+app.use(express.json({ limit: '10mb' }));
+
+// 處理 URL 編碼的請求體
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+```
+
+### 第三方中間件
+
+專案使用以下第三方中間件：
+
+```typescript
+// CORS 中間件
+app.use(cors({
+    origin: [...允許的來源列表...],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
+    credentials: true,
+    maxAge: 86400,
+}));
+```
+
+### 自定義中間件
+
+認證中間件是專案中最重要的自定義中間件：
+
+```typescript
+// src/middleware/auth.middleware.ts
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: '未授權訪問' });
+        }
+
+        const decoded = jwt.verify(token, jwtConfig.secret) as {
+            id: string;
+            email: string;
+        };
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.id },
+            select: { id: true, email: true, username: true },
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: '用戶不存在' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error: unknown) {
+        // 錯誤處理
+        return ApiResponse.error(
+            res,
+            '無效的 token',
+            'INVALID_TOKEN',
+            null,
+            401,
+        );
+    }
+};
+```
+
+### 中間件應用
+
+中間件可以應用於不同的範圍：
+
+```typescript
+// 全局中間件(應用於所有路由)
+app.use(cors());
+app.use(express.json());
+
+// 路由級中間件(應用於特定路由組)
+router.use('/profiles', authMiddleware);
+router.use(authMiddleware); // 應用於此路由器的所有後續路由
+
+// 路由處理器級中間件(應用於單個路由)
+router.get('/profile', authMiddleware, profileController.getProfile);
+```
+
+### 推薦做法
+
+✅ **中間件順序**：
+- 請求解析中間件(如 `express.json`)應位於最前面
+- 安全相關中間件(如 CORS)應位於前部
+- 自定義業務邏輯中間件應位於路由特定位置
+
+✅ **錯誤處理**：
+- 在中間件中使用 try/catch 捕獲錯誤
+- 對於同步中間件，使用 next(error) 傳遞錯誤
+- 對於異步中間件，確保正確處理 Promise 錯誤
+
+✅ **中間件設計**：
+- 保持中間件簡單，每個中間件只處理一種功能
+- 使用依賴注入提高可測試性
+- 使用 TypeScript 類型提高代碼安全性
+
+⚠️ **注意事項**：
+- 避免在中間件中執行複雜的業務邏輯
+- 避免在全局中間件中進行耗時操作
+- 注意異步中間件的錯誤處理
+
+## 路由設計與組織
+
+### 路由模塊化
+
+專案採用模塊化路由設計，按功能域劃分路由文件：
+
+```typescript
+// src/routes/index.ts (主路由文件)
+import { Router } from 'express';
+import authRoutes from './auth';
+import profileRoutes from './profiles';
+// ... 其他路由導入
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/profiles', profileRoutes);
+// ... 其他路由註冊
+
+export default router;
+```
+
+```typescript
+// src/routes/profiles.ts (功能特定路由)
+import { Router } from 'express';
+import { ProfileController } from '../controllers/ProfileController';
+import { authMiddleware } from '../middleware/auth.middleware';
+
+const router = Router();
+const profileController = new ProfileController();
+
+// 公開路由
+router.get('/:slug', profileController.getBySlug);
+
+// 需要認證的路由
+router.use(authMiddleware);
+router.post('/', profileController.create);
+router.patch('/:id', profileController.update);
+// ... 其他路由
+```
+
+### RESTful API 設計
+
+專案遵循 RESTful API 設計原則：
+
+| HTTP 方法 | 路徑 | 控制器方法 | 目的 |
+|----------|------|-----------|------|
+| GET | /profiles | getMyProfiles | 獲取當前用戶的所有檔案 |
+| GET | /profiles/:slug | getBySlug | 通過 slug 獲取特定檔案 |
+| POST | /profiles | create | 創建新檔案 |
+| PATCH | /profiles/:id | update | 更新檔案 |
+| DELETE | /profiles/:id | delete | 刪除檔案 |
+
+### 路由參數
+
+路由參數通過 `:paramName` 語法定義，並通過 `req.params` 訪問：
+
+```typescript
+// 路由定義
+router.get('/:slug', profileController.getBySlug);
+
+// 控制器方法
+getBySlug = async (req: Request, res: Response) => {
+    const slug = req.params.slug;
+    // ... 處理邏輯
+};
+```
+
+### 查詢參數
+
+查詢參數通過 `req.query` 訪問：
+
+```typescript
+// 路由定義
+router.get('/', profileController.getProfiles);
+
+// 控制器方法
+getProfiles = async (req: Request, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    // ... 處理邏輯
+};
+```
+
+### 推薦做法
+
+✅ **路由組織**：
+- 按功能域或資源類型劃分路由文件
+- 使用統一的路由命名模式
+- 將相關路由分組放置在同一個路由文件中
+
+✅ **RESTful 設計**：
+- 使用適當的 HTTP 方法表示操作(GET, POST, PUT/PATCH, DELETE)
+- 使用複數名詞表示資源集合(如 /profiles 而非 /profile)
+- 使用嵌套路由表示資源關係(如 /profiles/:id/links)
+
+✅ **路由參數驗證**：
+- 在控制器層或中間件中驗證路由參數
+- 對 ID、slug 等參數進行格式和存在性驗證
+
+⚠️ **注意事項**：
+- 避免過深的路由嵌套
+- 避免在路由定義中包含業務邏輯
+- 確保路由參數命名清晰且一致
+
+## 控制器模式與實現
+
+### 控制器結構
+
+專案使用類控制器模式，每個控制器負責特定資源或功能域：
+
+```typescript
+// src/controllers/ProfileController.ts
+@Service()
+export class ProfileController {
+    private profileService: ProfileService;
+
+    constructor() {
+        this.profileService = new ProfileService();
+    }
+
+    // 使用箭頭函數定義控制器方法
+    create = async (req: Request, res: Response) => {
+        try {
+            // 1. 驗證請求數據
+            const createProfileDto = plainToClass(CreateProfileDto, req.body);
+            const errors = await validate(createProfileDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            // 2. 調用服務層處理業務邏輯
+            const profile = await this.profileService.create(createProfileDto, req.user!.id);
+            
+            // 3. 返回響應
+            return ApiResponse.success(res, { profile });
+        } catch (error: unknown) {
+            // 4. 錯誤處理
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '創建檔案失敗',
+                'PROFILE_CREATE_ERROR',
+                apiError.message,
+                apiError.status || 500,
+            );
+        }
+    };
+
+    // ... 其他控制器方法
+}
+```
+
+### 依賴注入
+
+專案使用 TypeDI 進行依賴注入，在控制器中注入服務：
+
+```typescript
+@Service()
+export class UserController {
+    constructor(
+        private readonly userService: UserService,
+        private readonly emailService: EmailService
+    ) {}
+
+    // ... 控制器方法
+}
+```
+
+### 推薦做法
+
+✅ **控制器職責**：
+- 控制器只負責 HTTP 層面的邏輯(請求解析、響應格式化)
+- 將業務邏輯委託給服務層
+- 保持控制器方法簡潔，避免複雜邏輯
+
+✅ **錯誤處理**：
+- 使用 try/catch 捕獲所有可能的錯誤
+- 使用統一的錯誤響應格式
+- 區分不同類型的錯誤(驗證錯誤、業務邏輯錯誤、系統錯誤)
+
+✅ **依賴注入**：
+- 使用構造函數注入服務依賴
+- 使用 `@Service()` 裝飾器標記控制器
+- 避免在控制器中直接實例化服務
+
+✅ **方法命名**：
+- 方法名應表明操作和資源(如 `createProfile`, `getProfileById`)
+- 保持方法命名一致性
+- 使用箭頭函數確保 `this` 綁定正確
+
+⚠️ **注意事項**：
+- 避免在控制器中直接訪問數據庫
+- 避免在控制器中硬編碼業務規則
+- 注意異步方法的錯誤處理
+
+## 請求數據處理與驗證
+
+### DTO 模式
+
+專案使用數據傳輸對象(DTO)模式處理請求數據：
+
+```typescript
+// src/dtos/profile.dto.ts
+export class CreateProfileDto {
+    @IsString()
+    @Length(1, 100)
+    name: string;
+
+    @IsString()
+    @Length(1, 50)
+    @Matches(/^[a-z0-9-]+$/)
+    slug: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsBoolean()
+    isPublic: boolean;
+}
+```
+
+### 請求驗證
+
+使用 class-validator 和 class-transformer 驗證請求數據：
+
+```typescript
+// 控制器中的驗證邏輯
+const createProfileDto = plainToClass(CreateProfileDto, req.body);
+const errors = await validate(createProfileDto);
+
+if (errors.length > 0) {
+    return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+}
+```
+
+### 推薦做法
+
+✅ **DTO 設計**：
+- 每種請求類型使用專門的 DTO 類
+- 使用裝飾器定義驗證規則
+- 包含明確的類型註解
+- 使用可選屬性表示非必須字段
+
+✅ **驗證策略**：
+- 在控制器層進行輸入驗證
+- 返回詳細的驗證錯誤信息
+- 驗證不僅檢查類型，還檢查業務規則(如字段長度、格式)
+
+✅ **數據轉換**：
+- 使用 plainToClass 轉換請求數據為強類型對象
+- 處理日期、布爾值等特殊類型的轉換
+
+⚠️ **注意事項**：
+- 避免在多個地方重複驗證邏輯
+- 避免過於嚴格或過於寬鬆的驗證規則
+- 確保驗證錯誤消息對用戶友好且明確
+
+## 錯誤處理與響應格式化
+
+### 標準響應格式
+
+專案使用 ApiResponse 工具類統一響應格式：
+
+```typescript
+// 成功響應
+return ApiResponse.success(res, { profile });
+
+// 錯誤響應
+return ApiResponse.error(
+    res,
+    '創建檔案失敗',
+    'PROFILE_CREATE_ERROR',
+    apiError.message,
+    apiError.status || 500,
+);
+```
+
+### 響應格式結構
+
+**成功響應**：
+```json
+{
+    "success": true,
+    "data": {
+        // 響應數據...
+    }
+}
+```
+
+**錯誤響應**：
+```json
+{
+    "success": false,
+    "error": {
+        "message": "錯誤消息",
+        "code": "ERROR_CODE",
+        "details": "詳細錯誤信息"
+    }
+}
+```
+
+### 錯誤類型
+
+專案定義了自定義錯誤類型：
+
+```typescript
+// src/types/error.types.ts
+export interface ApiError extends Error {
+    status?: number;
+    code?: string;
+    details?: any;
+}
+```
+
+### 推薦做法
+
+✅ **統一響應格式**：
+- 所有 API 響應使用一致的格式
+- 清晰區分成功和錯誤響應
+- 包含適當的元數據(如錯誤代碼)
+
+✅ **錯誤處理策略**：
+- 在控制器層捕獲和處理錯誤
+- 將服務層錯誤轉換為適當的 HTTP 錯誤
+- 使用描述性錯誤消息和代碼
+
+✅ **HTTP 狀態碼使用**：
+- 使用適當的 HTTP 狀態碼表示結果
+- 200/201：成功請求
+- 400：客戶端錯誤(如驗證錯誤)
+- 401/403：認證/授權錯誤
+- 404：資源未找到
+- 500：服務器錯誤
+
+⚠️ **注意事項**：
+- 避免在錯誤響應中洩露敏感信息
+- 避免不必要的冗長錯誤消息
+- 考慮實現全局錯誤處理中間件
+
+## 文件上傳處理
+
+### Multer 配置
+
+專案使用 multer 處理文件上傳：
+
+```typescript
+// 配置 multer
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 限制上傳大小為 5MB
+    },
+    fileFilter: (req, file, cb) => {
+        // 只允許圖片文件
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('只允許上傳圖片文件'));
+        }
+        cb(null, true);
+    },
+});
+
+// 在路由中使用
+router.post('/:id/image', upload.single('image') as any, profileController.uploadProfileImage);
+```
+
+### 文件處理
+
+上傳後的文件處理：
+
+```typescript
+// 控制器方法
+uploadProfileImage = async (req: Request, res: Response) => {
+    try {
+        if (!req.file) {
+            return ApiResponse.error(res, '未提供圖片', 'NO_IMAGE_PROVIDED', null, 400);
+        }
+
+        // 處理文件(調整大小、優化等)
+        // 存儲文件(如使用 Vercel Blob)
+        // 更新數據庫記錄
+
+        return ApiResponse.success(res, { imageUrl });
+    } catch (error) {
+        // 錯誤處理
+    }
+};
+```
+
+### 推薦做法
+
+✅ **文件驗證**：
+- 限制文件大小和類型
+- 驗證文件內容(如確保圖片格式正確)
+- 使用適當的錯誤處理
+
+✅ **文件存儲**：
+- 考慮使用雲存儲服務(如 Vercel Blob)
+- 生成唯一文件名避免衝突
+- 考慮文件的訪問控制
+
+✅ **性能考慮**：
+- 使用 memoryStorage 處理小文件
+- 對圖片進行壓縮和優化
+- 考慮異步處理大文件上傳
+
+⚠️ **注意事項**：
+- 避免在文件名中使用用戶提供的輸入
+- 確保正確處理文件上傳錯誤
+- 考慮實現文件上傳進度跟踪
+
+## API 文檔與 Swagger 集成
+
+### Swagger 配置
+
+專案使用 swagger-jsdoc 和 swagger-ui-express 提供 API 文檔：
+
+```typescript
+// src/swagger.ts
+import swaggerJsdoc from 'swagger-jsdoc';
+import swaggerUi from 'swagger-ui-express';
+
+const options = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'NFC LinkCard API',
+            version: '1.0.0',
+            description: 'NFC LinkCard Express API 文檔',
+        },
+        servers: [
+            {
+                url: 'http://localhost:3020',
+                description: '開發服務器',
+            },
+        ],
+        components: {
+            securitySchemes: {
+                bearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT',
+                },
+            },
+        },
+        security: [
+            {
+                bearerAuth: [],
+            },
+        ],
+    },
+    apis: ['./src/routes/*.ts', './src/controllers/*.ts'], // 從路由和控制器文件生成文檔
+};
+
+export const specs = swaggerJsdoc(options);
+export { swaggerUi };
+```
+
+### API 註解
+
+使用 JSDoc 註解描述 API：
+
+```typescript
+/**
+ * @swagger
+ * /api/profiles:
+ *   post:
+ *     summary: 創建新檔案
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateProfileDto'
+ *     responses:
+ *       201:
+ *         description: 檔案創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profile:
+ *                       $ref: '#/components/schemas/Profile'
+ */
+router.post('/', authMiddleware, profileController.create);
+```
+
+### 推薦做法
+
+✅ **文檔組織**：
+- 按資源或功能分組 API
+- 使用標籤分類 API
+- 提供清晰的概述和描述
+
+✅ **API 描述**：
+- 描述每個端點的目的和用途
+- 詳細說明請求和響應格式
+- 列出可能的錯誤和狀態碼
+
+✅ **代碼與文檔同步**：
+- 將文檔註解放在靠近代碼的位置
+- 使用 DTO 模式描述請求和響應結構
+- 在 CI/CD 流程中驗證文檔
+
+⚠️ **注意事項**：
+- 避免在文檔中洩露敏感信息
+- 確保文檔與實際 API 行為一致
+- 定期審查和更新文檔
+
+## 安全性考慮
+
+### 認證和授權
+
+專案使用 JWT 進行認證：
+
+```typescript
+// 生成 JWT 令牌
+const token = jwt.sign(
+    { id: user.id, email: user.email },
+    jwtConfig.secret,
+    { expiresIn: jwtConfig.expiresIn }
+);
+
+// 驗證 JWT 令牌
+const decoded = jwt.verify(token, jwtConfig.secret) as {
+    id: string;
+    email: string;
+};
+```
+
+### 輸入驗證
+
+使用 class-validator 進行輸入驗證：
+
+```typescript
+export class CreateUserDto {
+    @IsEmail()
+    email: string;
+
+    @IsString()
+    @Length(8, 30)
+    @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+        message: '密碼必須包含至少一個小寫字母、一個大寫字母和一個數字',
+    })
+    password: string;
+}
+```
+
+### 推薦做法
+
+✅ **認證最佳實踐**：
+- 使用 HTTPS 保護所有通信
+- 設置適當的 JWT 過期時間
+- 實現令牌刷新機制
+- 安全存儲密鑰和密碼
+
+✅ **授權控制**：
+- 實現基於角色的訪問控制
+- 驗證資源所有權
+- 最小權限原則
+
+✅ **防護措施**：
+- 實現 CORS 保護
+- 設置適當的 HTTP 頭(如 Content-Security-Policy)
+- 防範 XSS 和 CSRF 攻擊
+- 實現速率限制防止暴力攻擊
+
+⚠️ **注意事項**：
+- 避免在 JWT 中存儲敏感信息
+- 定期審查和更新安全措施
+- 跟蹤安全漏洞和更新
+
+## 性能優化建議
+
+### 異步處理
+
+使用 async/await 進行異步操作：
+
+```typescript
+async function findProfiles(userId: string) {
+    // 並行執行多個異步操作
+    const [profiles, stats] = await Promise.all([
+        profileService.findByUserId(userId),
+        statsService.getUserStats(userId),
+    ]);
+    
+    return { profiles, stats };
+}
+```
+
+### 查詢優化
+
+優化數據庫查詢：
+
+```typescript
+// 只選擇需要的字段
+const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, username: true },
+});
+
+// 使用包含關係減少查詢次數
+const profile = await prisma.profile.findUnique({
+    where: { id },
+    include: { links: true },
+});
+```
+
+### 推薦做法
+
+✅ **性能監控**：
+- 實現請求計時和日誌記錄
+- 監控慢查詢和性能瓶頸
+- 定期審查和優化性能
+
+✅ **緩存策略**：
+- 考慮使用 Redis 等緩存系統
+- 緩存頻繁訪問的數據
+- 實現適當的緩存失效策略
+
+✅ **代碼優化**：
+- 避免阻塞操作
+- 使用流處理大數據集
+- 限制查詢結果集大小
+- 使用批處理代替循環查詢
+
+⚠️ **注意事項**：
+- 避免過早優化
+- 在優化前測量性能基準
+- 平衡性能和可讀性/可維護性
+
+## 常見問題與解決方案
+
+### 處理 CORS 錯誤
+
+```typescript
+// 配置 CORS 中間件
+app.use(cors({
+    origin: (origin, callback) => {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS 不允許此來源'));
+        }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+```
+
+### 處理大量異步操作
+
+```typescript
+// 使用 Promise.all 並行處理
+const processItems = async (items) => {
+    const chunks = chunkArray(items, 10); // 將數組分成每組10個的塊
+    
+    for (const chunk of chunks) {
+        await Promise.all(
+            chunk.map(item => processItem(item))
+        );
+    }
+};
+```
+
+### 處理文件上傳錯誤
+
+```typescript
+// 使用錯誤處理中間件捕獲 multer 錯誤
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return ApiResponse.error(res, '文件大小超過限制', 'FILE_TOO_LARGE', null, 400);
+        }
+    }
+    next(err);
+});
+```
+
+### 其他常見問題
+
+1. **請求超時處理**：設置合理的超時值，實現重試機制
+2. **內存洩漏**：注意事件監聽器移除，避免閉包引起的意外引用
+3. **依賴注入問題**：確保 TypeDI 容器正確配置，服務正確註冊
+
+## 結語
+
+本指南涵蓋了 NFC LinkCard Express 項目中 Express.js 的使用方式和最佳實踐。遵循這些指導原則將有助於保持代碼一致性、可維護性和安全性。隨著項目的發展，本指南也將不斷更新和完善。
+
+如有疑問或建議，請聯繫技術負責人或提交 Pull Request 修改本文檔。
+

@@ -1,0 +1,752 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - 常見問題解答 (FAQ)
+
+## 目錄
+
+- [開發環境設置](mdc:#開發環境設置)
+- [項目架構理解](mdc:#項目架構理解)
+- [技術特定問題](mdc:#技術特定問題)
+- [代碼組織和風格](mdc:#代碼組織和風格)
+- [文件操作](mdc:#文件操作)
+- [部署和環境](mdc:#部署和環境)
+- [性能和安全](mdc:#性能和安全)
+- [參考資源](mdc:#參考資源)
+
+## 介紹
+
+本 FAQ 文檔旨在為 NFC LinkCard Express 項目的新工程師提供常見問題的解答，幫助快速了解和適應項目的開發環境、架構設計和技術實踐。文檔中的答案既符合項目的現有實踐，也遵循業界標準的最佳做法。
+
+## 開發環境設置
+
+### Q1: 如何設置本地開發環境？
+
+要設置本地開發環境，請按照以下步驟操作：
+
+1. 克隆代碼庫：
+   ```bash
+   git clone https://github.com/Chonwai/NFC_LinkCard_Express.git
+   cd NFC_LinkCard_Express
+   ```
+
+2. 安裝依賴：
+   ```bash
+   npm install
+   # 或使用 yarn
+   yarn install
+   ```
+
+3. 創建環境變量文件：
+   - 複製 `.env.example` 為 `.env.local`
+   - 填寫必要的環境變量（數據庫連接、JWT 密鑰等）
+
+4. 生成 Prisma 客戶端：
+   ```bash
+   npm run prisma:generate
+   ```
+
+5. 運行開發服務器：
+   ```bash
+   npm run dev:local
+   ```
+
+### Q2: 不同環境的配置文件有什麼區別？
+
+項目支持四種環境配置：
+
+- **local**: 本地開發環境（`.env.local`）
+- **development**: 開發環境（`.env.development`）
+- **staging**: 預發布環境（`.env.staging`）
+- **production**: 生產環境（`.env.production`）
+
+每個環境的配置文件應包含相應環境的：
+- 數據庫連接字符串
+- JWT 密鑰和配置
+- CORS 允許的來源
+- 郵件服務配置
+- 文件存儲設置
+- 日誌級別
+
+### Q3: 如何使用不同的環境運行應用？
+
+使用 `package.json` 中定義的環境特定腳本：
+
+```bash
+# 本地環境
+npm run dev:local
+
+# 開發環境
+npm run dev:dev
+
+# 預發布環境
+npm run dev:staging
+
+# 生產環境
+npm run dev:prod
+```
+
+這些腳本會加載相應的環境變量文件並設置 `NODE_ENV` 變量。
+
+## 項目架構理解
+
+### Q4: 什麼是「模塊化單體」架構？
+
+模塊化單體（Modular Monolith）是一種架構模式，其中：
+
+- 整個應用作為單一部署單元運行（單體）
+- 內部代碼按邏輯功能和業務域進行模塊化組織（模塊化）
+
+在我們的項目中，這體現為：
+- 按技術層次分離的核心目錄（controllers, services, routes 等）
+- 按業務域分離的模塊目錄（如 `association/`）
+- 共享功能集中在 `common/` 目錄
+
+這種架構的優勢包括：
+- 開發和部署簡單
+- 高內聚、低耦合的代碼組織
+- 為未來微服務架構演進鋪路
+
+詳細說明請參考 [項目架構說明文檔](mdc:400-architecture.mdc)。
+
+### Q5: 系統的數據流是什麼樣的？
+
+一個典型的 API 請求處理流程如下：
+
+1. **HTTP 請求**到達 Express 應用
+2. **全局中間件**（CORS、請求解析、日誌等）處理請求
+3. **路由匹配**將請求導向相應的路由處理器
+4. **路由級中間件**（如 `authMiddleware`）進行身份驗證
+5. **控制器方法**被調用，進行請求數據驗證和轉換
+6. **服務方法**執行核心業務邏輯，可能調用多個服務或數據庫操作
+7. **結果返回**給控制器
+8. **控制器格式化響應**並發送回客戶端
+9. **錯誤處理**在各層捕獲和處理
+
+### Q6: 如何在系統中添加新功能或模塊？
+
+添加新功能的一般步驟：
+
+1. **確定功能所屬業務域**：
+   - 通用功能添加到主目錄結構
+   - 特定版本功能添加到相應業務模塊（如 `association/`）
+
+2. **按分層架構添加組件**：
+   - **DTO**: 創建新的 DTO 類（`src/dtos/` 或業務模塊內）
+   - **控制器**: 添加控制器方法或新控制器（`src/controllers/` 或業務模塊內）
+   - **服務**: 實現業務邏輯（`src/services/` 或業務模塊內）
+   - **路由**: 定義 API 端點（`src/routes/` 或業務模塊內）
+
+3. **註冊路由**：
+   - 在相應的路由文件中註冊新端點
+   - 應用必要的中間件（如認證）
+
+4. **更新 Swagger 文檔**：
+   - 添加 JSDoc 註解描述新 API
+
+## 技術特定問題
+
+### Q7: 如何使用和自定義中間件？
+
+中間件可以應用於三個級別：
+
+1. **應用級別**（所有請求）：
+   ```typescript
+   // 在 app.ts 中
+   app.use(middlewareFunction);
+   ```
+
+2. **路由組級別**（特定路由組）：
+   ```typescript
+   // 在路由文件中
+   router.use(middlewareFunction);
+   ```
+
+3. **路由級別**（特定路由）：
+   ```typescript
+   router.get('/path', middlewareFunction, controllerMethod);
+   ```
+
+**自定義中間件示例**：
+```typescript
+export const customMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    // 中間件邏輯
+    
+    // 出錯時直接響應
+    if (someErrorCondition) {
+        return ApiResponse.error(res, '錯誤消息', 'ERROR_CODE', null, 400);
+    }
+    
+    // 成功時調用 next()
+    next();
+};
+```
+
+詳細指南請參考 [Express.js 使用指南](mdc:300-expressjs-guidelines.mdc#中間件使用與自定義)。
+
+### Q8: 如何在項目中使用依賴注入？
+
+項目使用 TypeDI 進行依賴注入，主要步驟：
+
+1. **標記服務為可注入**：
+   ```typescript
+   import { Service } from 'typedi';
+   
+   @Service()
+   export class UserService {
+       // 服務實現...
+   }
+   ```
+
+2. **在控制器或其他服務中注入**：
+   ```typescript
+   @Service()
+   export class UserController {
+       constructor(
+           private userService: UserService,
+           private emailService: EmailService
+       ) {}
+       
+       // 控制器方法...
+   }
+   ```
+
+3. **在需要手動獲取服務實例的地方**：
+   ```typescript
+   import { Container } from 'typedi';
+   
+   const userService = Container.get(UserService);
+   ```
+
+### Q9: 如何使用 Prisma ORM 執行數據庫操作？
+
+Prisma ORM 操作示例：
+
+1. **基本 CRUD 操作**：
+   ```typescript
+   // 創建
+   const user = await prisma.user.create({
+       data: {
+           email: 'user@example.com',
+           username: 'username',
+           // 其他字段...
+       }
+   });
+   
+   // 查詢
+   const user = await prisma.user.findUnique({
+       where: { id: userId },
+       select: { id: true, email: true, username: true } // 選擇特定字段
+   });
+   
+   // 更新
+   const updatedUser = await prisma.user.update({
+       where: { id: userId },
+       data: { username: newUsername }
+   });
+   
+   // 刪除
+   await prisma.user.delete({
+       where: { id: userId }
+   });
+   ```
+
+2. **關聯查詢**：
+   ```typescript
+   const profile = await prisma.profile.findUnique({
+       where: { id: profileId },
+       include: { links: true } // 包含關聯數據
+   });
+   ```
+
+3. **事務處理**：
+   ```typescript
+   const result = await prisma.$transaction(async (tx) => {
+       // 使用 tx 代替 prisma 執行事務內的操作
+       const user = await tx.user.create({ ... });
+       const profile = await tx.profile.create({ ... });
+       return { user, profile };
+   });
+   ```
+
+### Q10: JWT 認證是如何實現的？
+
+JWT 認證流程：
+
+1. **生成 Token**（登錄時）：
+   ```typescript
+   import jwt from 'jsonwebtoken';
+   import { jwtConfig } from '../config/jwt.config';
+   
+   const token = jwt.sign(
+       { id: user.id, email: user.email },
+       jwtConfig.secret,
+       { expiresIn: jwtConfig.expiresIn }
+   );
+   ```
+
+2. **驗證 Token**（`authMiddleware` 中）：
+   ```typescript
+   const token = req.headers.authorization?.split(' ')[1];
+   if (!token) {
+       return res.status(401).json({ message: '未授權訪問' });
+   }
+   
+   try {
+       const decoded = jwt.verify(token, jwtConfig.secret) as {
+           id: string;
+           email: string;
+       };
+       
+       // 驗證用戶是否存在
+       const user = await prisma.user.findUnique({
+           where: { id: decoded.id }
+       });
+       
+       if (!user) {
+           return res.status(401).json({ message: '用戶不存在' });
+       }
+       
+       // 將用戶信息附加到請求對象
+       req.user = user;
+       next();
+   } catch (error) {
+       return ApiResponse.error(res, '無效的 token', 'INVALID_TOKEN', null, 401);
+   }
+   ```
+
+3. **使用 `authMiddleware`**：
+   ```typescript
+   router.get('/me', authMiddleware, userController.getProfile);
+   ```
+
+## 代碼組織和風格
+
+### Q11: 項目的命名約定是什麼？
+
+項目遵循以下命名約定：
+
+- **文件命名**:
+  - 使用 camelCase（如 `userService.ts`）
+  - 類文件使用 PascalCase（如 `UserController.ts`）
+  - 接口文件使用 PascalCase 並加前綴 I（如 `IUserService.ts`）
+
+- **類命名**:
+  - 控制器使用 PascalCase 並以 Controller 結尾（如 `UserController`）
+  - 服務使用 PascalCase 並以 Service 結尾（如 `UserService`）
+  - DTO 使用 PascalCase 並以 Dto 結尾（如 `CreateUserDto`）
+
+- **變量和方法命名**:
+  - 使用 camelCase（如 `getUserById`）
+  - 私有屬性使用下劃線前綴（如 `_privateVar`）
+
+- **常量命名**:
+  - 使用全大寫 SNAKE_CASE（如 `MAX_FILE_SIZE`）
+
+- **接口命名**:
+  - 使用 PascalCase 並加前綴 I（如 `IUserRepository`）
+
+### Q12: 如何正確使用 DTO 進行數據驗證？
+
+使用 DTO 的標準流程：
+
+1. **定義 DTO 類**：
+   ```typescript
+   import { IsEmail, IsString, Length, IsOptional } from 'class-validator';
+   
+   export class CreateUserDto {
+       @IsEmail()
+       email: string;
+       
+       @IsString()
+       @Length(3, 50)
+       username: string;
+       
+       @IsString()
+       @Length(8, 30)
+       password: string;
+       
+       @IsOptional()
+       @IsString()
+       bio?: string;
+   }
+   ```
+
+2. **在控制器中驗證**：
+   ```typescript
+   import { plainToClass } from 'class-transformer';
+   import { validate } from 'class-validator';
+   
+   export class UserController {
+       async createUser(req: Request, res: Response) {
+           try {
+               // 轉換請求數據為 DTO 對象
+               const createUserDto = plainToClass(CreateUserDto, req.body);
+               
+               // 驗證 DTO
+               const errors = await validate(createUserDto);
+               
+               // 處理驗證錯誤
+               if (errors.length > 0) {
+                   return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+               }
+               
+               // 處理通過驗證的數據
+               const user = await this.userService.createUser(createUserDto);
+               return ApiResponse.success(res, { user });
+           } catch (error) {
+               // 錯誤處理...
+           }
+       }
+   }
+   ```
+
+更多驗證裝飾器和用法，請參考 [class-validator 文檔](mdc:https:/github.com/typestack/class-validator#usage)。
+
+### Q13: 項目的錯誤處理機制是什麼？
+
+項目使用多層次的錯誤處理機制：
+
+1. **API 錯誤類型**：
+   ```typescript
+   export interface ApiError extends Error {
+       status?: number;
+       code?: string;
+       details?: any;
+   }
+   ```
+
+2. **在控制器中使用 try-catch**：
+   ```typescript
+   try {
+       // 業務邏輯...
+   } catch (error: unknown) {
+       const apiError = error as ApiError;
+       return ApiResponse.error(
+           res,
+           '操作失敗',
+           apiError.code || 'INTERNAL_ERROR',
+           apiError.details,
+           apiError.status || 500
+       );
+   }
+   ```
+
+3. **標準化響應**：
+   ```typescript
+   // 成功響應
+   return ApiResponse.success(res, { data });
+   
+   // 錯誤響應
+   return ApiResponse.error(res, message, code, details, status);
+   ```
+
+4. **自定義業務錯誤**：
+   ```typescript
+   throw {
+       message: '資源不存在',
+       code: 'RESOURCE_NOT_FOUND',
+       status: 404,
+       details: { resourceId }
+   } as ApiError;
+   ```
+
+## 文件操作
+
+### Q14: 如何處理文件上傳？
+
+文件上傳使用 multer 中間件：
+
+1. **配置 multer**：
+   ```typescript
+   import multer from 'multer';
+   
+   const upload = multer({
+       storage: multer.memoryStorage(), // 使用內存存儲
+       limits: {
+           fileSize: 5 * 1024 * 1024, // 5MB 限制
+       },
+       fileFilter: (req, file, cb) => {
+           // 驗證文件類型
+           if (!file.mimetype.startsWith('image/')) {
+               return cb(new Error('只允許上傳圖片文件'));
+           }
+           cb(null, true);
+       },
+   });
+   ```
+
+2. **在路由中應用**：
+   ```typescript
+   router.post(
+       '/:id/image',
+       authMiddleware,
+       upload.single('image') as any,
+       profileController.uploadProfileImage
+   );
+   ```
+
+3. **在控制器中處理**：
+   ```typescript
+   async uploadProfileImage(req: Request, res: Response) {
+       try {
+           if (!req.file) {
+               return ApiResponse.error(res, '未提供圖片', 'NO_IMAGE_PROVIDED', null, 400);
+           }
+           
+           // 處理上傳的文件...
+           // 儲存文件...
+           
+           return ApiResponse.success(res, { imageUrl });
+       } catch (error) {
+           // 錯誤處理...
+       }
+   }
+   ```
+
+### Q15: 如何處理和優化上傳的圖片？
+
+使用 sharp 庫處理圖片：
+
+```typescript
+import sharp from 'sharp';
+
+// 在控制器方法中
+async uploadProfileImage(req: Request, res: Response) {
+    try {
+        const file = req.file;
+        
+        // 使用 sharp 處理圖片
+        const processedImageBuffer = await sharp(file.buffer)
+            .resize(800, 800, {
+                fit: sharp.fit.inside,
+                withoutEnlargement: true
+            })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+        
+        // 儲存處理後的圖片（例如使用 Vercel Blob）
+        const { url } = await put(
+            `profiles/${req.user.id}/${Date.now()}.jpg`,
+            processedImageBuffer,
+            { contentType: 'image/jpeg' }
+        );
+        
+        // 更新數據庫記錄
+        await this.profileService.updateProfileImage(req.params.id, url);
+        
+        return ApiResponse.success(res, { imageUrl: url });
+    } catch (error) {
+        // 錯誤處理...
+    }
+}
+```
+
+## 部署和環境
+
+### Q16: 如何部署應用到生產環境？
+
+部署到 Vercel 的步驟：
+
+1. **準備構建**：
+   ```bash
+   npm run build
+   ```
+   這將執行：
+   - Prisma 客戶端生成
+   - TypeScript 編譯
+
+2. **Vercel 部署**：
+   ```bash
+   npm run vercel-build
+   ```
+   這將執行：
+   - Prisma 客戶端生成
+   - 數據庫遷移
+   - TypeScript 編譯
+
+3. **環境變量配置**：
+   - 在 Vercel 控制面板設置所有必要的環境變量
+   - 確保設置了 `NODE_ENV=production`
+
+4. **配置 Vercel.json**：
+   ```json
+   {
+     "version": 2,
+     "builds": [
+       {
+         "src": "dist/app.js",
+         "use": "@vercel/node"
+       }
+     ],
+     "routes": [
+       {
+         "src": "/(.*)",
+         "dest": "dist/app.js"
+       }
+     ]
+   }
+   ```
+
+### Q17: 如何管理數據庫遷移？
+
+使用 Prisma Migrate 管理數據庫遷移：
+
+1. **創建遷移**：
+   ```bash
+   npx prisma migrate dev --name migration_name
+   ```
+
+2. **應用遷移到各環境**：
+   ```bash
+   # 本地環境
+   npm run prisma:migrate:local
+   
+   # 開發環境
+   npm run prisma:migrate:dev
+   
+   # 預發布環境
+   npm run prisma:migrate:staging
+   
+   # 生產環境
+   npm run prisma:migrate:prod
+   ```
+
+3. **查看數據庫**：
+   ```bash
+   npm run prisma:studio
+   ```
+
+## 性能和安全
+
+### Q18: 如何處理跨域資源共享 (CORS)？
+
+項目使用 cors 中間件處理跨域請求：
+
+```typescript
+// 在 app.ts 中
+app.use(cors({
+    origin: [
+        'http://localhost:3005',
+        'https://link-card-frontend.vercel.app',
+        // 其他允許的來源...
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
+    credentials: true,
+    maxAge: 86400,
+}));
+```
+
+對於更靈活的配置，可以使用函數：
+
+```typescript
+app.use(cors({
+    origin: (origin, callback) => {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('CORS 不允許此來源'));
+        }
+    },
+    // 其他配置...
+}));
+```
+
+### Q19: 如何使用 Swagger 查看和測試 API？
+
+Swagger UI 集成在項目中，可通過以下方式訪問和使用：
+
+1. **訪問 Swagger UI**：
+   - 啟動服務器後訪問 `/api-docs` 路徑
+   - 例如：`http://localhost:3020/api-docs`
+
+2. **使用 Swagger UI 測試 API**：
+   - 瀏覽可用的 API 端點
+   - 展開某個端點查看詳細信息
+   - 點擊 "Try it out" 按鈕
+   - 填寫請求參數
+   - 點擊 "Execute" 執行請求
+   - 查看響應結果
+
+3. **添加 API 文檔**：
+   ```typescript
+   /**
+    * @swagger
+    * /api/users:
+    *   post:
+    *     summary: 創建新用戶
+    *     tags: [Users]
+    *     requestBody:
+    *       required: true
+    *       content:
+    *         application/json:
+    *           schema:
+    *             $ref: '#/components/schemas/CreateUserDto'
+    *     responses:
+    *       201:
+    *         description: 用戶創建成功
+    */
+   router.post('/', userController.createUser);
+   ```
+
+### Q20: 如何優化 API 性能？
+
+API 性能優化的關鍵方法：
+
+1. **數據庫查詢優化**：
+   - 只選擇必要的字段：
+     ```typescript
+     const user = await prisma.user.findUnique({
+         where: { id },
+         select: { id: true, email: true } // 只選擇需要的字段
+     });
+     ```
+   - 使用 `include` 而非多次查詢：
+     ```typescript
+     const profile = await prisma.profile.findUnique({
+         where: { id },
+         include: { links: true } // 一次性獲取關聯數據
+     });
+     ```
+   - 適當使用索引
+
+2. **並行處理**：
+   ```typescript
+   const [user, profiles, stats] = await Promise.all([
+       userService.getUser(userId),
+       profileService.getUserProfiles(userId),
+       statsService.getUserStats(userId)
+   ]);
+   ```
+
+3. **適當的錯誤處理**：
+   - 避免無差別的 try-catch
+   - 區分不同類型的錯誤
+
+4. **數據分頁**：
+   ```typescript
+   const profiles = await prisma.profile.findMany({
+       skip: (page - 1) * limit,
+       take: limit,
+       where: { userId }
+   });
+   ```
+
+5. **避免大型響應**：
+   - 實現分頁
+   - 只返回必要的數據
+
+## 參考資源
+
+- [Express.js 使用指南](mdc:300-expressjs-guidelines.mdc)
+- [項目架構說明](mdc:400-architecture.mdc)
+- [Express.js 官方文檔](mdc:https:/expressjs.com)
+- [Prisma 文檔](mdc:https:/www.prisma.io/docs)
+- [TypeDI 文檔](mdc:https:/github.com/typestack/typedi)
+- [class-validator 文檔](mdc:https:/github.com/typestack/class-validator)
+- [JWT 文檔](mdc:https:/jwt.io/introduction)

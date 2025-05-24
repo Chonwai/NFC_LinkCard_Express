@@ -1,0 +1,449 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - 代碼風格規範
+
+## 概述
+
+本文檔定義了 NFC LinkCard Express 項目的代碼風格和最佳實踐，旨在確保代碼質量、一致性和可維護性。所有貢獻者都應遵循這些規範進行開發。
+
+## 基本格式化
+
+### 縮進和空白
+
+- 使用 **4 個空格**進行縮進，不使用 tab
+- 運算符前後添加空格（例如 `x + y` 而非 `x+y`）
+- 逗號後添加空格（例如 `[1, 2, 3]` 而非 `[1,2,3]`）
+- 函數參數括號前不加空格（例如 `function foo(bar)` 而非 `function foo (bar)`）
+
+```typescript
+// ✅ 正確
+function calculateTotal(items: Item[], tax: number): number {
+    return items.reduce((total, item) => {
+        return total + item.price;
+    }, 0) * (1 + tax);
+}
+
+// ❌ 錯誤
+function calculateTotal (items:Item[],tax:number):number{
+  return items.reduce((total,item)=>{
+    return total+item.price;
+  },0)*(1+tax);
+}
+```
+
+### 引號和分號
+
+- 使用**單引號**（`'`）而非雙引號（`"`）表示字符串
+- 模板字符串使用反引號（\`）
+- 每個語句末尾使用分號（`;`）
+
+```typescript
+// ✅ 正確
+const name = 'John';
+const greeting = `Hello, ${name}!`;
+console.log(greeting);
+
+// ❌ 錯誤
+const name = "John"
+const greeting = "Hello, " + name + "!"
+console.log(greeting)
+```
+
+### 行長度和換行
+
+- 每行代碼最大長度為 **100 個字符**
+- 當一行超過最大長度時，應在適當位置換行：
+  - 方法鏈：在 `.` 之前換行
+  - 參數列表：在逗號後換行
+  - 邏輯表達式：在運算符之前換行
+
+```typescript
+// ✅ 正確
+const longList = items
+    .filter(item => item.isActive)
+    .map(item => item.name)
+    .join(', ');
+
+// ❌ 錯誤
+const longList = items.filter(item => item.isActive).map(item => item.name).join(', ');
+```
+
+### 括號和塊
+
+- 開括號與聲明位於同一行
+- 閉括號單獨占一行
+- 即使只有一條語句，也使用花括號
+
+```typescript
+// ✅ 正確
+if (condition) {
+    doSomething();
+}
+
+// ❌ 錯誤
+if (condition)
+    doSomething();
+
+if (condition) { doSomething(); }
+```
+
+## 命名約定
+
+### 文件和目錄
+
+- **目錄名**：使用小寫連字符（kebab-case），例如 `user-profiles/`
+- **TypeScript 文件**：
+  - 類文件使用 PascalCase，例如 `UserController.ts`
+  - 其他工具/函數文件使用 camelCase，例如 `apiResponse.ts`
+- **路由文件**：使用小寫複數形式，例如 `users.ts`, `profiles.ts`
+
+### 類和接口
+
+- **類名**：使用 PascalCase，例如 `ProfileService`
+- **接口名**：使用 PascalCase，通常不加前綴 `I`，例如 `UserProfile`
+- **類型別名**：使用 PascalCase，通常添加後綴表示用途，例如 `CreateUserDto`
+
+```typescript
+// ✅ 正確
+class UserController { ... }
+interface UserProfile { ... }
+type CreateUserDto = { ... }
+
+// ❌ 錯誤
+class userController { ... }
+interface IUserProfile { ... }
+type create_user_dto = { ... }
+```
+
+### 方法和函數
+
+- **方法/函數名**：使用 camelCase，動詞開頭，例如 `getUser()`, `createProfile()`
+- **私有方法**：使用下劃線前綴，例如 `_validateInput()`
+- **控制器方法**：使用箭頭函數定義，例如 `getUser = async (req, res) => { ... }`
+
+```typescript
+// ✅ 正確
+public async findById(id: string): Promise<User> { ... }
+private _validateEmail(email: string): boolean { ... }
+getUser = async (req: Request, res: Response) => { ... }
+
+// ❌ 錯誤
+public async FindById(id: string): Promise<User> { ... }
+private validateEmail(email: string): boolean { ... }
+async function GetUser(req: Request, res: Response) { ... }
+```
+
+### 變數和常量
+
+- **變數名**：使用 camelCase，例如 `userName`
+- **常量**：使用大寫下劃線（UPPER_SNAKE_CASE），例如 `MAX_FILE_SIZE`
+- **布爾變數**：使用 `is`, `has`, `can` 等前綴，例如 `isActive`, `hasPermission`
+
+```typescript
+// ✅ 正確
+const userName = 'john_doe';
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const isActive = true;
+
+// ❌ 錯誤
+const UserName = 'john_doe';
+const maxFileSize = 5 * 1024 * 1024;
+const active = true;
+```
+
+### 數據庫欄位與 TypeScript 屬性
+
+- **數據庫欄位**：使用 snake_case，例如 `user_id`, `is_active`
+- **TypeScript 屬性**：使用 camelCase，例如 `userId`, `isActive`
+- 在 Prisma 模型中使用 `@map` 屬性映射這些差異
+
+```typescript
+// ✅ 正確 (Prisma Schema)
+model User {
+  id          String  @id @default(uuid())
+  userName    String  @map("user_name")
+  isActive    Boolean @default(true) @map("is_active")
+}
+
+// ✅ 正確 (TypeScript)
+interface User {
+  id: string;
+  userName: string;
+  isActive: boolean;
+}
+```
+
+## 代碼組織
+
+### 導入順序
+
+導入語句應按以下順序排列，每組之間空一行：
+
+1. Node.js 核心模塊
+2. 第三方庫/框架
+3. 項目內部模塊（按相對路徑深度排序）
+
+```typescript
+// ✅ 正確
+import { Request, Response } from 'express';
+import { Service } from 'typedi';
+import { validate } from 'class-validator';
+
+import { ProfileService } from '../services/ProfileService';
+import { CreateProfileDto } from '../dtos/profile.dto';
+import { ApiResponse } from '../utils/apiResponse';
+```
+
+### 類成員順序
+
+類成員應按以下順序排列：
+
+1. 屬性（先靜態再實例，先公共再私有）
+2. 構造函數
+3. 方法（先靜態再實例，按功能分組，通常公共方法在前）
+
+```typescript
+// ✅ 正確
+@Service()
+export class ProfileService {
+    // 1. 屬性
+    private fileUploadService: FileUploadService;
+    
+    // 2. 構造函數
+    constructor() {
+        this.fileUploadService = new FileUploadService();
+    }
+    
+    // 3. 公共方法
+    async findById(id: string): Promise<Profile> {
+        // ...
+    }
+    
+    // 4. 私有方法
+    private _validateProfileData(data: any): boolean {
+        // ...
+    }
+}
+```
+
+### 文件結構
+
+每個 TypeScript 文件應遵循以下結構：
+
+1. 導入語句
+2. 接口/類型定義
+3. 主要類/函數實現
+4. 輔助函數/變量
+5. 導出語句
+
+每個文件應該只有一個主要職責，例如一個控制器、一個服務或一個工具類。
+
+## TypeScript 特性
+
+### 類型註解
+
+- 函數參數和返回值應明確類型註解
+- 變量聲明通常可以依賴類型推斷，除非初始值為 any/unknown
+- 使用接口定義對象結構，而非內聯類型
+- 數組類型優先使用 `Type[]` 形式，而非 `Array<Type>`
+
+```typescript
+// ✅ 正確
+function getUser(id: string): Promise<User> { ... }
+const users: User[] = [];
+
+// ❌ 錯誤
+function getUser(id): Promise<any> { ... }
+const users = [] as Array<User>;
+```
+
+### 非空斷言和可選鏈
+
+- 優先使用可選鏈（`?.`）和空值合併（`??`）
+- 謹慎使用非空斷言（`!`），只在確定值非空且無法通過代碼結構表達時使用
+
+```typescript
+// ✅ 正確
+const userName = user?.profile?.name ?? 'Guest';
+
+// ❌ 錯誤（除非絕對確定 user.profile 非空）
+const userName = user.profile!.name;
+```
+
+### 裝飾器使用
+
+- 裝飾器應單獨一行，緊接在目標之前
+- 類裝飾器優先使用參數工廠形式，如 `@Service()`
+- 類型裝飾器（如 class-validator）應按邏輯分組
+
+```typescript
+// ✅ 正確
+@Service()
+export class ProfileController {
+    @Inject()
+    private profileService: ProfileService;
+}
+
+export class CreateUserDto {
+    @IsEmail()
+    @IsNotEmpty()
+    email: string;
+    
+    @IsString()
+    @Length(8, 30)
+    password: string;
+}
+```
+
+## 最佳實踐
+
+### 異常處理
+
+- 使用 try-catch 捕獲並處理異常
+- 在控制器層使用統一的錯誤響應格式（ApiResponse.error）
+- 在服務層拋出有意義的錯誤，包含足夠的上下文信息
+- 使用自定義錯誤類而非通用 Error
+
+```typescript
+// ✅ 正確
+try {
+    const profile = await this.profileService.findById(id);
+    return ApiResponse.success(res, { profile });
+} catch (error: unknown) {
+    const apiError = error as ApiError;
+    return ApiResponse.error(
+        res,
+        '獲取檔案失敗',
+        'PROFILE_FETCH_ERROR',
+        apiError.message,
+        apiError.status || 500
+    );
+}
+```
+
+### 異步編程
+
+- 優先使用 async/await 而非 Promise 鏈
+- 在異步函數中使用 Promise.all 處理並行操作
+- 處理異步操作的錯誤，不要讓 Promise 被無聲拒絕
+
+```typescript
+// ✅ 正確
+async function processUsers(userIds: string[]) {
+    try {
+        const users = await Promise.all(
+            userIds.map(id => userService.findById(id))
+        );
+        return users.filter(user => user.isActive);
+    } catch (error) {
+        logger.error('Error processing users', error);
+        throw error;
+    }
+}
+```
+
+### 依賴注入
+
+- 使用 TypeDI 進行依賴注入
+- 服務類使用 `@Service()` 裝飾器
+- 依賴應在構造函數中注入
+- 避免在服務內部直接實例化其他服務
+
+```typescript
+// ✅ 正確
+@Service()
+export class ProfileController {
+    constructor(
+        private readonly profileService: ProfileService,
+        private readonly analyticsService: AnalyticsService
+    ) {}
+}
+
+// ❌ 錯誤
+export class ProfileController {
+    private profileService = new ProfileService();
+}
+```
+
+## API 設計
+
+### 請求與響應
+
+- 使用 DTO 類處理請求數據，並用 class-validator 進行驗證
+- 使用統一的響應格式，如 ApiResponse 工具類
+- 在錯誤情況下提供明確的錯誤代碼和消息
+
+```typescript
+// 請求處理
+const createProfileDto = plainToClass(CreateProfileDto, req.body);
+const errors = await validate(createProfileDto);
+
+if (errors.length > 0) {
+    return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+}
+
+// 響應格式
+return ApiResponse.success(res, { profile }, 201);
+```
+
+### URL 命名
+
+- 使用複數名詞表示資源集合，如 `/profiles`, `/users`
+- 使用 ID 參數訪問特定資源，如 `/profiles/:id`
+- 使用動詞表示操作，如 `/profiles/:id/upload-image`
+- 使用小寫連字符（kebab-case）格式，如 `/reset-password`
+
+### 狀態碼使用
+
+- 200: 成功的 GET, PUT, PATCH 請求
+- 201: 成功的 POST 請求（創建資源）
+- 204: 成功的 DELETE 請求（無內容返回）
+- 400: 客戶端錯誤（數據驗證失敗等）
+- 401: 未授權（未登錄）
+- 403: 權限不足
+- 404: 資源不存在
+- 500: 服務器錯誤
+
+## 自動化工具
+
+項目使用以下工具確保代碼質量和一致性：
+
+### ESLint
+
+配置文件：[.eslintrc](mdc:.eslintrc) 和 [eslint.config.js](mdc:eslint.config.js)
+
+主要規則：
+- 使用 TypeScript ESLint 插件
+- 與 Prettier 集成避免沖突
+- 禁用部分規則以適應項目需求
+
+### Prettier
+
+配置文件：[.prettierrc](mdc:.prettierrc)
+
+主要設置：
+```json
+{
+  "semi": true,
+  "trailingComma": "all",
+  "singleQuote": true,
+  "printWidth": 100,
+  "tabWidth": 4,
+  "endOfLine": "auto"
+}
+```
+
+### Git Hooks
+
+使用 Husky 和 lint-staged 在提交前檢查代碼：
+- 每次提交前自動運行 ESLint 和 Prettier
+- 只檢查修改的文件，提高效率
+
+## 結語
+
+本代碼風格指南旨在提供一個一致的標準，幫助團隊成員編寫高質量、可維護的代碼。隨著項目的發展，本指南也會不斷更新和完善。
+
+如有疑問或建議，請聯繫技術負責人或提交 Pull Request 修改本文檔。

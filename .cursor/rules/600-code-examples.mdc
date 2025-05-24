@@ -1,0 +1,1092 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - 代碼示例庫
+
+## 目錄
+
+- [介紹](mdc:#介紹)
+- [控制器實現](mdc:#控制器實現)
+- [服務層實現](mdc:#服務層實現)
+- [DTO 和數據驗證](mdc:#dto-和數據驗證)
+- [中間件實現](mdc:#中間件實現)
+- [路由配置](mdc:#路由配置)
+- [API 響應處理](mdc:#api-響應處理)
+- [錯誤處理](mdc:#錯誤處理)
+- [文件上傳處理](mdc:#文件上傳處理)
+- [依賴注入](mdc:#依賴注入)
+- [Prisma 數據操作](mdc:#prisma-數據操作)
+- [端到端功能實現](mdc:#端到端功能實現)
+
+## 介紹
+
+本文檔提供 NFC LinkCard Express 項目的標準代碼實現示例，幫助新工程師快速了解項目的代碼風格、架構模式和最佳實踐。示例來自項目的實際代碼，並結合了業界標準的最佳實踐。
+
+使用這些示例時，請注意：
+- 示例代碼經過簡化，可能省略了部分細節
+- 示例展示了推薦的實現方式，可作為開發新功能的參考
+- 代碼風格和模式應與現有代碼保持一致，確保整個代碼庫的一致性
+
+## 控制器實現
+
+控制器負責處理 HTTP 請求，調用服務層處理業務邏輯，並返回適當的響應。
+
+### 標準控制器示例
+
+```typescript
+// 文件：src/controllers/ProfileController.ts
+@Service()
+export class ProfileController {
+    private profileService: ProfileService;
+
+    constructor() {
+        this.profileService = new ProfileService();
+    }
+
+    create = async (req: Request, res: Response) => {
+        try {
+            // 1. 請求數據轉換和驗證
+            const createProfileDto = plainToClass(CreateProfileDto, req.body);
+            const errors = await validate(createProfileDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            // 2. 調用服務層處理業務邏輯
+            const profile = await this.profileService.create(createProfileDto, req.user!.id);
+            
+            // 3. 返回成功響應
+            return ApiResponse.success(res, { profile });
+        } catch (error: unknown) {
+            // 4. 錯誤處理
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '創建檔案失敗',
+                'PROFILE_CREATE_ERROR',
+                apiError.message,
+                apiError.status || 500,
+            );
+        }
+    };
+}
+```
+
+### 依賴注入控制器示例
+
+```typescript
+// 文件：src/controllers/AuthController.ts
+@Service()
+export class AuthController {
+    constructor(
+        private readonly emailService: EmailService,
+        private readonly userService: UserService,
+        private readonly authService: AuthService,
+    ) {}
+
+    login = async (req: Request, res: Response) => {
+        try {
+            const loginDto = plainToClass(LoginDto, req.body);
+            const errors = await validate(loginDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            const result = await this.authService.login(loginDto, res);
+            if (!result || !('user' in result)) return;
+
+            return ApiResponse.success(res, result, 200, {
+                Authorization: `Bearer ${result.token}`,
+                'Access-Control-Expose-Headers': 'Authorization',
+            });
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(res, '登入失敗', 'LOGIN_ERROR', apiError.message, 500);
+        }
+    };
+}
+```
+
+### 最佳實踐
+
+1. **關注點分離**：控制器只負責處理 HTTP 層面的邏輯，不包含業務邏輯
+2. **錯誤處理**：使用 try-catch 捕獲所有可能的錯誤，返回統一格式的錯誤響應
+3. **輸入驗證**：使用 DTO 和驗證裝飾器驗證請求數據
+4. **依賴注入**：使用構造函數注入依賴，提高可測試性
+5. **方法命名**：方法名應清晰表明其功能和資源操作
+6. **箭頭函數**：使用箭頭函數定義方法，避免 `this` 綁定問題
+
+### 避免的做法
+
+- 在控制器中直接訪問數據庫
+- 在控制器中實現業務邏輯
+- 返回不一致的響應格式
+- 缺少適當的錯誤處理
+
+## 服務層實現
+
+服務層包含業務邏輯，協調數據訪問和業務規則，並處理事務。
+
+### 基本服務實現
+
+```typescript
+// 文件：src/services/UserService.ts
+@Service()
+export class UserService {
+    async findById(id: string) {
+        return await prisma.user.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                display_name: true,
+                avatar: true,
+                bio: true,
+                created_at: true,
+                updated_at: true,
+            },
+        });
+    }
+
+    async update(id: string, data: UpdateUserDto) {
+        return await prisma.user.update({
+            where: { id },
+            data,
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                display_name: true,
+                avatar: true,
+                bio: true,
+                created_at: true,
+                updated_at: true,
+            },
+        });
+    }
+}
+```
+
+### 複雜業務邏輯示例
+
+```typescript
+// 文件：src/services/ProfileService.ts
+@Service()
+export class ProfileService {
+    private fileUploadService: FileUploadService;
+
+    constructor() {
+        const storageProvider = new VercelBlobProvider(process.env.BLOB_READ_WRITE_TOKEN);
+        this.fileUploadService = new FileUploadService(storageProvider);
+    }
+
+    async create(data: CreateProfileDto, userId: string) {
+        const slug = await generateSlug(data.name);
+
+        return await prisma.$transaction(async (tx) => {
+            // 檢查是否已經有默認檔案
+            const existingDefaultProfile = await tx.profile.findFirst({
+                where: {
+                    user_id: userId,
+                    is_default: true,
+                },
+            });
+
+            // 如果沒有默認檔案，將所有檔案設為非默認
+            if (!existingDefaultProfile) {
+                await tx.profile.updateMany({
+                    where: { user_id: userId },
+                    data: { is_default: false },
+                });
+            }
+
+            return await tx.profile.create({
+                data: {
+                    ...data,
+                    slug,
+                    user_id: userId,
+                    is_default: !existingDefaultProfile,
+                },
+                include: {
+                    user: {
+                        select: {
+                            username: true,
+                            display_name: true,
+                            avatar: true,
+                        },
+                    },
+                },
+            });
+        });
+    }
+}
+```
+
+### 最佳實踐
+
+1. **事務處理**：使用事務確保數據一致性
+2. **選擇性查詢**：只選擇需要的字段，提高查詢效率
+3. **服務組合**：在服務間適當組合以實現複雜功能
+4. **業務規則封裝**：將業務規則和邏輯封裝在服務中
+5. **依賴注入**：使用構造函數注入依賴
+
+### 避免的做法
+
+- 在服務中處理 HTTP 請求/響應
+- 服務之間的循環依賴
+- 混淆服務職責
+- 在服務中處理展示邏輯
+
+## DTO 和數據驗證
+
+數據傳輸對象(DTO)定義了請求和響應的數據結構，並提供驗證規則。
+
+### 基本 DTO 示例
+
+```typescript
+// 文件：src/dtos/profile.dto.ts
+export class CreateProfileDto {
+    @IsString()
+    name: string;
+
+    @IsString()
+    @IsOptional()
+    description?: string;
+
+    @IsBoolean()
+    @IsOptional()
+    is_public?: boolean;
+
+    @IsObject()
+    @IsOptional()
+    meta?: Record<string, any>;
+
+    @IsObject()
+    @IsOptional()
+    appearance?: Record<string, any>;
+
+    @IsString()
+    @IsOptional()
+    slug?: string;
+}
+```
+
+### 複雜驗證規則示例
+
+```typescript
+// 文件：src/dtos/auth.dto.ts
+export class InitialRegisterDto {
+    @IsEmail({}, { message: 'Please enter a valid email address' })
+    email: string;
+
+    @IsString({ message: 'Username must be a string' })
+    @MinLength(3, { message: 'Username must be at least 3 characters long' })
+    username: string;
+
+    @IsString({ message: 'Password must be a string' })
+    @MinLength(8, { message: 'Password must be at least 8 characters long' })
+    @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
+        message:
+            'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
+    })
+    password: string;
+}
+```
+
+### 自定義驗證器示例
+
+```typescript
+// 文件：src/validators/link-url.validator.ts
+@ValidatorConstraint({ name: 'isValidLinkUrl', async: false })
+export class IsValidLinkUrlConstraint implements ValidatorConstraintInterface {
+    validate(url: string, args: ValidationArguments) {
+        const object = args.object as any;
+        const platform = object.platform as LinkPlatform;
+        const type = object.type as LinkType;
+
+        // 如果是 CUSTOM 類型但沒有指定平台，則跳過驗證
+        if (type === LinkType.CUSTOM && !platform) {
+            return true;
+        }
+
+        // 如果指定了平台，則使用對應的正則表達式驗證
+        if (platform) {
+            const pattern = URL_PATTERNS[platform];
+            return pattern.test(url);
+        }
+
+        return true;
+    }
+
+    defaultMessage(args: ValidationArguments) {
+        const object = args.object as any;
+        const platform = object.platform as LinkPlatform;
+        return platform 
+            ? `URL 格式不正確，請參考 ${platform} 的標準格式` 
+            : 'URL 格式不正確';
+    }
+}
+
+export function IsValidLinkUrl(validationOptions?: ValidationOptions) {
+    return function (object: Object, propertyName: string) {
+        registerDecorator({
+            target: object.constructor,
+            propertyName: propertyName,
+            options: validationOptions,
+            constraints: [],
+            validator: IsValidLinkUrlConstraint,
+        });
+    };
+}
+```
+
+### 最佳實踐
+
+1. **使用裝飾器**：使用 class-validator 裝飾器定義驗證規則
+2. **詳細錯誤信息**：提供清晰、有幫助的錯誤信息
+3. **DTO 單一職責**：每個 DTO 只服務於特定的用例
+4. **可選屬性**：使用可選屬性標記非必需字段
+5. **自定義驗證**：對複雜規則實現自定義驗證器
+
+### 避免的做法
+
+- 使用通用 DTO 處理多種請求
+- 缺少適當的驗證規則
+- 在代碼中進行硬編碼驗證而非使用裝飾器
+- 過於寬鬆或過於嚴格的驗證規則
+
+## 中間件實現
+
+中間件處理橫切關注點，如身份驗證、日誌記錄和請求處理。
+
+### 身份驗證中間件示例
+
+```typescript
+// 文件：src/middleware/auth.middleware.ts
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: '未授權訪問' });
+        }
+
+        const decoded = jwt.verify(token, jwtConfig.secret) as {
+            id: string;
+            email: string;
+        };
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.id },
+            select: { id: true, email: true, username: true },
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: '用戶不存在' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error: unknown) {
+        const apiError = error as ApiError;
+        return ApiResponse.error(
+            res,
+            '無效的 token',
+            'INVALID_TOKEN',
+            null,
+            apiError.status || 401,
+        );
+    }
+};
+```
+
+### 最佳實踐
+
+1. **單一職責**：每個中間件只負責一個特定功能
+2. **錯誤處理**：妥善處理可能的錯誤，避免請求掛起
+3. **非阻塞**：避免在中間件中執行耗時操作
+4. **順序考慮**：注意中間件執行順序的重要性
+5. **請求擴展**：適當擴展 Request 對象，但避免過度使用
+
+### 避免的做法
+
+- 在中間件中包含業務邏輯
+- 缺少適當的錯誤處理
+- 過度依賴請求對象的擴展
+- 執行阻塞操作
+
+## 路由配置
+
+路由配置定義 API 端點，將 HTTP 請求映射到控制器方法。
+
+### 主路由配置示例
+
+```typescript
+// 文件：src/routes/index.ts
+import { Router } from 'express';
+import authRoutes from './auth';
+import profileRoutes from './profiles';
+import linkRoutes from './links';
+import userRoutes from './users';
+import leadRoutes from './leads';
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/profiles', profileRoutes);
+router.use('/links', linkRoutes);
+router.use('/users', userRoutes);
+router.use('/leads', leadRoutes);
+
+export default router;
+```
+
+### 功能模塊路由示例
+
+```typescript
+// 文件：src/routes/leads.ts
+import { Router } from 'express';
+import { LeadController } from '../controllers/LeadController';
+import { authMiddleware } from '../middleware/auth.middleware';
+
+const router = Router();
+const leadController = new LeadController();
+
+// 公開路由 - 提交表單
+router.post('/profile/:profileId', leadController.create);
+
+// 需要認證的路由
+router.use(authMiddleware);
+router.get('/profile/:profileId', leadController.getByProfile);
+
+export default router;
+```
+
+### 最佳實踐
+
+1. **模塊化**：按功能域劃分路由文件
+2. **中間件應用**：在路由級別應用適當的中間件
+3. **RESTful 設計**：遵循 RESTful 設計原則命名端點
+4. **參數驗證**：在控制器中驗證路由參數
+5. **版本控制**：考慮 API 版本控制策略
+
+### 避免的做法
+
+- 過於複雜的路由結構
+- 不一致的命名約定
+- 忽略 HTTP 方法語義
+- 缺少適當的中間件保護
+
+## API 響應處理
+
+API 響應處理確保所有 API 端點返回一致的響應格式。
+
+### API 響應工具示例
+
+```typescript
+// 文件：src/utils/apiResponse.ts
+export class ApiResponse {
+    static success(res: Response, data: any, status: number = 200, headers?: ApiResponseHeaders) {
+        Object.entries(headers || {}).forEach(([key, value]) => {
+            res.header(key, value);
+        });
+
+        return res.status(status).json({
+            success: true,
+            data,
+        });
+    }
+
+    static error(
+        res: Response,
+        message: string,
+        code: string,
+        details: unknown,
+        status: number = 400,
+    ) {
+        const response: any = {
+            success: false,
+            error: {
+                message,
+                code,
+            },
+        };
+
+        if (details) {
+            response.error.details = details;
+        }
+
+        return res.status(status).json(response);
+    }
+
+    // 便捷方法
+    static badRequest(
+        res: Response,
+        message = 'Bad Request',
+        code = 'BAD_REQUEST',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 400);
+    }
+
+    static unauthorized(
+        res: Response,
+        message = 'Unauthorized',
+        code = 'UNAUTHORIZED',
+        details?: unknown,
+    ) {
+        return this.error(res, message, code, details, 401);
+    }
+
+    // ... 其他便捷方法
+}
+```
+
+### 最佳實踐
+
+1. **一致性**：所有端點使用一致的響應格式
+2. **狀態碼**：使用適當的 HTTP 狀態碼
+3. **錯誤代碼**：使用明確的錯誤代碼便於客戶端處理
+4. **描述性消息**：提供清晰的錯誤和成功消息
+5. **結構化數據**：使用統一的數據結構
+
+### 避免的做法
+
+- 不一致的響應格式
+- 使用不當的 HTTP 狀態碼
+- 缺少錯誤詳情
+- 在響應中包含敏感信息
+
+## 錯誤處理
+
+錯誤處理確保應用程序能夠優雅地處理各種錯誤情況。
+
+### 錯誤類型定義
+
+```typescript
+// 文件：src/types/error.types.ts
+export interface ApiError {
+    message: string;
+    code: string;
+    details?: unknown;
+    status: number;
+}
+```
+
+### 錯誤處理工具
+
+```typescript
+// 文件：src/utils/ErrorHandler.ts
+export class ErrorHandler {
+    static forbidden(res: Response, message: string = '無權訪問', code: string = 'FORBIDDEN') {
+        return ApiResponse.error(res, message, code, null, 403);
+    }
+
+    static badRequest(res: Response, message: string, code: string = 'BAD_REQUEST') {
+        return ApiResponse.error(res, message, code, null, 400);
+    }
+
+    static notFound(res: Response, message: string, code: string = 'NOT_FOUND') {
+        return ApiResponse.error(res, message, code, null, 404);
+    }
+
+    static unauthorized(
+        res: Response,
+        message: string = '未授權訪問',
+        code: string = 'UNAUTHORIZED',
+    ) {
+        return ApiResponse.error(res, message, code, null, 401);
+    }
+}
+```
+
+### 最佳實踐
+
+1. **集中處理**：使用統一的錯誤處理機制
+2. **錯誤分類**：區分不同類型的錯誤
+3. **詳細信息**：提供有用的錯誤詳情
+4. **安全考慮**：不在生產環境暴露敏感的錯誤信息
+5. **可追蹤**：確保錯誤可被追蹤和記錄
+
+### 避免的做法
+
+- 不處理或忽略錯誤
+- 使用通用錯誤消息
+- 在生產環境暴露堆棧跟踪
+- 不一致的錯誤處理方式
+
+## 文件上傳處理
+
+文件上傳處理負責接收、處理和存儲用戶上傳的文件。
+
+### 文件上傳服務示例
+
+```typescript
+// 文件：src/services/FileUploadService.ts
+export class FileUploadService {
+    constructor(private readonly storageProvider: StorageProvider) {}
+
+    async uploadImage(
+        file: Express.Multer.File,
+        folder: string,
+        options: ImageProcessOptions = {},
+    ): Promise<UploadedFile> {
+        const {
+            width = 400,
+            height = 400,
+            quality = 80,
+            maxSizeKB = 100,
+            format = 'webp',
+        } = options;
+
+        try {
+            // 初始壓縮參數
+            let currentQuality = quality;
+            let processedBuffer: Buffer;
+            let fileSizeKB: number;
+
+            // 智能壓縮循環
+            do {
+                // 處理圖片尺寸
+                let imageProcessor = sharp(file.buffer).resize(width, height, {
+                    fit: 'cover',
+                    position: 'center',
+                });
+
+                // 根據指定格式處理圖片
+                switch (format) {
+                    case 'webp':
+                        imageProcessor = imageProcessor.webp({ quality: currentQuality });
+                        break;
+                    case 'jpeg':
+                        imageProcessor = imageProcessor.jpeg({ quality: currentQuality });
+                        break;
+                    case 'png':
+                        imageProcessor = imageProcessor.png({ quality: currentQuality });
+                        break;
+                }
+
+                processedBuffer = await imageProcessor.toBuffer();
+                fileSizeKB = processedBuffer.length / 1024;
+
+                // 如果文件仍然太大，降低質量繼續嘗試
+                if (fileSizeKB > maxSizeKB && currentQuality > 10) {
+                    currentQuality -= 10;
+                }
+            } while (fileSizeKB > maxSizeKB && currentQuality > 10);
+
+            // 生成文件名
+            const timestamp = Date.now();
+            const extension = format === 'jpeg' ? 'jpg' : format;
+            const filename = `${timestamp}-${file.originalname.replace(/\.[^/.]+$/, '')}.${extension}`;
+
+            // 上傳到存儲服務
+            return await this.storageProvider.upload(processedBuffer, {
+                filename,
+                contentType: `image/${format}`,
+                folder,
+            });
+        } catch (error) {
+            console.error('圖片處理失敗:', error);
+            throw error;
+        }
+    }
+}
+```
+
+### 存儲提供者實現示例
+
+```typescript
+// 文件：src/storage/vercel-blob.provider.ts
+export class VercelBlobProvider implements StorageProvider {
+    constructor(private readonly token?: string) {}
+
+    async upload(
+        file: Buffer,
+        options: {
+            filename: string;
+            contentType: string;
+            folder?: string;
+        },
+    ): Promise<UploadedFile> {
+        const path = options.folder ? `${options.folder}/${options.filename}` : options.filename;
+
+        const { url } = await put(path, file, {
+            access: 'public',
+            contentType: options.contentType,
+            token: this.token,
+        });
+
+        return {
+            url,
+            key: path,
+            size: file.length,
+        };
+    }
+}
+```
+
+### 最佳實踐
+
+1. **文件驗證**：驗證文件類型、大小和內容
+2. **圖片優化**：處理和優化上傳的圖片
+3. **存儲抽象**：使用存儲提供者接口實現不同的存儲方案
+4. **安全考慮**：確保文件上傳過程的安全性
+5. **錯誤處理**：妥善處理上傳過程中的錯誤
+
+### 避免的做法
+
+- 直接存儲未處理的文件
+- 不限制文件大小和類型
+- 使用不安全的文件名
+- 缺少適當的錯誤處理
+
+## 依賴注入
+
+依賴注入提高了代碼的可測試性和可維護性。
+
+### 依賴注入示例
+
+```typescript
+// 使用 TypeDI 進行依賴注入
+
+// 文件：src/controllers/AuthController.ts
+@Service()
+export class AuthController {
+    constructor(
+        private readonly emailService: EmailService,
+        private readonly userService: UserService,
+        private readonly authService: AuthService,
+    ) {}
+
+    // 控制器方法...
+}
+
+// 文件：src/routes/auth.ts
+import { Router } from 'express';
+import { AuthController } from '../controllers/AuthController';
+import Container from 'typedi';
+
+const router = Router();
+const authController = Container.get(AuthController);
+
+router.post('/register', authController.register);
+// 其他路由...
+
+export default router;
+```
+
+### 最佳實踐
+
+1. **構造函數注入**：通過構造函數注入依賴
+2. **接口依賴**：依賴於抽象而非具體實現
+3. **單例服務**：使用 `@Service()` 裝飾器創建單例服務
+4. **測試支持**：設計便於在測試中模擬的依賴
+5. **避免循環依賴**：注意避免服務間的循環依賴
+
+### 避免的做法
+
+- 直接實例化依賴
+- 過度使用全局單例
+- 硬編碼依賴關係
+- 創建難以測試的依賴結構
+
+## Prisma 數據操作
+
+Prisma ORM 提供了類型安全的數據庫訪問。
+
+### 基本 CRUD 操作示例
+
+```typescript
+// 文件：src/services/UserService.ts
+
+// 創建
+async create(data: RegisterDto) {
+    return await prisma.user.create({
+        data,
+        select: {
+            id: true,
+            email: true,
+            username: true,
+            display_name: true,
+            // 其他字段...
+        },
+    });
+}
+
+// 讀取
+async findById(id: string) {
+    return await prisma.user.findUnique({
+        where: { id },
+        select: {
+            id: true,
+            username: true,
+            email: true,
+            // 其他字段...
+        },
+    });
+}
+
+// 更新
+async update(id: string, data: UpdateUserDto) {
+    return await prisma.user.update({
+        where: { id },
+        data,
+        select: {
+            id: true,
+            username: true,
+            // 其他字段...
+        },
+    });
+}
+
+// 刪除
+async delete(id: string) {
+    return await prisma.user.delete({
+        where: { id },
+    });
+}
+```
+
+### 關聯查詢示例
+
+```typescript
+// 文件：src/services/ProfileService.ts
+async findBySlug(slug: string) {
+    return await prisma.profile.findUnique({
+        where: { slug },
+        include: {
+            user: {
+                select: {
+                    username: true,
+                    display_name: true,
+                    avatar: true,
+                },
+            },
+            links: {
+                where: { is_active: true },
+                orderBy: [
+                    { display_order: 'asc' },
+                    { created_at: 'desc' },
+                ],
+            },
+        },
+    });
+}
+```
+
+### 事務處理示例
+
+```typescript
+// 文件：src/services/ProfileService.ts
+async setDefault(id: string, userId: string) {
+    return await prisma.$transaction(async (tx) => {
+        // 先將所有檔案設為非默認
+        await tx.profile.updateMany({
+            where: { user_id: userId },
+            data: { is_default: false },
+        });
+
+        // 再將指定檔案設為默認
+        return await tx.profile.update({
+            where: { id },
+            data: { is_default: true },
+            include: {
+                // 關聯...
+            },
+        });
+    });
+}
+```
+
+### 最佳實踐
+
+1. **選擇性查詢**：只選擇需要的字段，避免過度獲取
+2. **關聯查詢**：使用 `include` 高效獲取關聯數據
+3. **事務處理**：使用事務確保數據一致性
+4. **批量操作**：使用批量操作提高性能
+5. **過濾和排序**：在數據庫層面進行過濾和排序
+
+### 避免的做法
+
+- N+1 查詢問題
+- 過度使用 `include` 獲取不必要的關聯
+- 在循環中執行數據庫操作
+- 缺少適當的錯誤處理
+
+## 端到端功能實現
+
+這一部分展示了完整的功能實現流程，從路由到控制器再到服務。
+
+### 用戶認證流程
+
+```typescript
+// 路由定義 (src/routes/auth.ts)
+router.post('/login', authController.login);
+
+// 控制器實現 (src/controllers/AuthController.ts)
+login = async (req: Request, res: Response) => {
+    try {
+        const loginDto = plainToClass(LoginDto, req.body);
+        const errors = await validate(loginDto);
+
+        if (errors.length > 0) {
+            return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+        }
+
+        const result = await this.authService.login(loginDto, res);
+        if (!result || !('user' in result)) return;
+
+        return ApiResponse.success(res, result, 200, {
+            Authorization: `Bearer ${result.token}`,
+            'Access-Control-Expose-Headers': 'Authorization',
+        });
+    } catch (error: unknown) {
+        const apiError = error as ApiError;
+        return ApiResponse.error(res, '登入失敗', 'LOGIN_ERROR', apiError.message, 500);
+    }
+};
+
+// 服務實現 (src/services/AuthService.ts)
+async login(loginDto: LoginDto, res: Response) {
+    const { email, password } = loginDto;
+
+    const user = await prisma.user.findUnique({
+        where: { email },
+        select: {
+            id: true,
+            email: true,
+            username: true,
+            password: true,
+            is_verified: true,
+            display_name: true,
+            avatar: true,
+            bio: true,
+            created_at: true,
+            updated_at: true,
+        },
+    });
+
+    if (!user) {
+        return ErrorHandler.badRequest(res, '用戶不存在', 'USER_NOT_FOUND');
+    }
+
+    if (!user.is_verified) {
+        return ErrorHandler.badRequest(res, '請先驗證郵箱', 'EMAIL_NOT_VERIFIED');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+        return ErrorHandler.badRequest(res, '密碼錯誤', 'INVALID_PASSWORD');
+    }
+
+    const token = this.generateToken({ id: user.id, email: user.email });
+
+    delete user.password;
+
+    return { user, token };
+}
+```
+
+### 文件上傳流程
+
+```typescript
+// 路由定義 (src/routes/profiles.ts)
+router.post('/:id/image', upload.single('image'), profileController.uploadProfileImage);
+
+// 控制器實現 (src/controllers/ProfileController.ts)
+uploadProfileImage = async (req: Request, res: Response) => {
+    try {
+        if (!req.file) {
+            return ApiResponse.error(res, '未提供圖片', 'NO_IMAGE_PROVIDED', null, 400);
+        }
+
+        const { id } = req.params;
+        const profile = await this.profileService.uploadProfileImage(
+            id,
+            req.user!.id,
+            req.file,
+            res,
+        );
+
+        return ApiResponse.success(res, { profile });
+    } catch (error: unknown) {
+        const apiError = error as ApiError;
+        return ApiResponse.error(
+            res,
+            '上傳檔案圖片失敗',
+            'PROFILE_IMAGE_UPLOAD_ERROR',
+            apiError.message,
+            apiError.status || 500,
+        );
+    }
+};
+
+// 服務實現 (src/services/ProfileService.ts)
+async uploadProfileImage(id: string, userId: string, file: Express.Multer.File, res: Response) {
+    // 檢查檔案是否存在且屬於該用戶
+    const profile = await prisma.profile.findFirst({
+        where: { id, user_id: userId },
+    });
+
+    if (!profile) {
+        return ErrorHandler.notFound(res, '檔案不存在或無權訪問', 'PROFILE_NOT_FOUND');
+    }
+
+    try {
+        // 使用文件上傳服務處理圖片
+        const result = await this.fileUploadService.uploadImage(file, 'profiles', {
+            width: 800,
+            height: 800,
+            quality: 80,
+            maxSizeKB: 100,
+            format: 'webp',
+        });
+
+        // 更新檔案封面圖片
+        const updatedProfile = await prisma.profile.update({
+            where: { id },
+            data: { profile_image: result.url },
+            include: {
+                user: {
+                    select: {
+                        username: true,
+                        display_name: true,
+                        avatar: true,
+                    },
+                },
+            },
+        });
+
+        return updatedProfile;
+    } catch (error) {
+        console.error('檔案封面上傳失敗:', error);
+        throw error;
+    }
+}
+```
+
+### 最佳實踐
+
+1. **一致性**：保持端到端實現的一致性
+2. **清晰的責任劃分**：確保每一層有明確的職責
+3. **錯誤處理**：在整個流程中妥善處理錯誤
+4. **代碼組織**：保持相關功能的代碼鄰近
+5. **適當的抽象**：避免不必要的複雜性
+
+### 避免的做法
+
+- 混淆不同層的職責
+- 重複相同的邏輯
+- 不一致的錯誤處理
+- 過度抽象或過度簡化
+
+## 總結
+
+本文檔提供了 NFC LinkCard Express 項目的標準代碼實現示例，涵蓋了控制器、服務、DTO、中間件、路由配置等多個方面。這些示例反映了項目當前的實踐和業界的最佳標準，可作為開發新功能的參考。
+
+在實際開發中，請確保新代碼與現有代碼保持一致，並遵循本文檔中提到的最佳實踐。同時，不斷學習和改進，使代碼更加健壯、可維護和高效。

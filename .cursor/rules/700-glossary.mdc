@@ -1,0 +1,847 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - 專業術語表
+
+本文檔提供 NFC LinkCard Express 項目中使用的專業術語和定義，幫助新工程師快速理解系統中的重要概念和技術用語。
+
+## 目錄
+
+- [核心概念和資源](mdc:#核心概念和資源)
+- [技術術語](mdc:#技術術語)
+- [架構相關術語](mdc:#架構相關術語)
+- [API和請求/響應術語](mdc:#api和請求響應術語)
+- [安全相關術語](mdc:#安全相關術語)
+- [數據庫和ORM術語](mdc:#數據庫和orm術語)
+- [特殊功能術語](mdc:#特殊功能術語)
+
+## 核心概念和資源
+
+### User (用戶)
+系統的基本用戶實體，包含認證信息和個人資料。每個用戶可以創建多個檔案（數字名片）。
+
+```prisma
+model User {
+  id               String    @id @default(uuid())
+  username         String    @unique
+  email            String    @unique
+  password         String
+  // ... 其他字段
+}
+```
+
+### Profile (檔案)
+用戶創建的數字名片，具有自定義URL(slug)、設置和連結集合。這是系統的核心資源之一。
+
+```prisma
+model Profile {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  user_id     String    @map("user_id")
+  // ... 其他字段
+}
+```
+
+### Link (連結)
+添加到檔案中的社交媒體或自定義連結，可以進行排序和啟用/禁用控制。
+
+```prisma
+model Link {
+  id          String    @id @default(uuid())
+  title       String
+  url         String
+  profile_id  String    @map("profile_id")
+  type        LinkType  @default(CUSTOM)
+  // ... 其他字段
+}
+```
+
+### Analytics (分析)
+記錄檔案和連結的訪問統計，包括訪客信息、地理位置和設備數據。
+
+```prisma
+model Analytics {
+  id         String   @id @default(uuid())
+  user_id    String   @map("user_id")
+  link_id    String?  @map("link_id")
+  visitor_ip String   @map("visitor_ip")
+  // ... 其他字段
+}
+```
+
+### Lead (潛在客戶)
+通過檔案收集的潛在客戶信息，包括聯繫方式和其他相關數據。
+
+```prisma
+model Lead {
+  id           String   @id @default(uuid())
+  profile_id   String   @map("profile_id")
+  first_name   String   @map("first_name")
+  last_name    String   @map("last_name")
+  email        String
+  // ... 其他字段
+}
+```
+
+### Association (協會)
+協會版功能中的組織實體，可以包含多個成員和管理員。
+
+```prisma
+model Association {
+  id            String  @id @default(uuid())
+  name          String
+  slug          String  @unique
+  description   String?
+  // ... 其他字段
+}
+```
+
+### AssociationMember (協會成員)
+表示用戶在協會中的成員資格和角色。
+
+```prisma
+model AssociationMember {
+  id            String      @id @default(uuid())
+  associationId String      @map("association_id")
+  userId        String      @map("user_id")
+  role          MemberRole  @default(MEMBER)
+  // ... 其他字段
+}
+```
+
+### ProfileBadge (檔案徽章)
+顯示在用戶檔案上的協會徽章，可以自定義顯示方式。
+
+```prisma
+model ProfileBadge {
+  id            String          @id @default(uuid())
+  profileId     String          @map("profile_id")
+  associationId String          @map("association_id")
+  displayMode   BadgeDisplayMode @default(FULL)
+  // ... 其他字段
+}
+```
+
+### 常用枚舉類型
+
+#### LinkType
+連結類型枚舉，區分自定義連結和社交媒體連結。
+```prisma
+enum LinkType {
+  CUSTOM  // 自定義連結
+  SOCIAL  // 社交媒體連結
+}
+```
+
+#### LinkPlatform
+社交平台類型枚舉，指定連結對應的平台。
+```prisma
+enum LinkPlatform {
+  GITHUB
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  // ... 其他平台
+}
+```
+
+#### MemberRole
+成員角色枚舉，定義用戶在協會中的權限級別。
+```prisma
+enum MemberRole {
+  ADMIN   // 管理員
+  MEMBER  // 普通成員
+}
+```
+
+#### MembershipStatus
+會員狀態枚舉，表示協會成員的當前狀態。
+```prisma
+enum MembershipStatus {
+  ACTIVE     // 活躍會員
+  INACTIVE   // 非活躍會員
+  PENDING    // 待批准
+  EXPIRED    // 會員已過期
+  SUSPENDED  // 會員已暫停
+  TERMINATED // 會員已終止
+  CANCELLED  // 會員自行取消
+}
+```
+
+## 技術術語
+
+### DTO (Data Transfer Object)
+數據傳輸對象，用於在不同層之間傳遞數據，並提供數據驗證規則。
+
+```typescript
+export class CreateProfileDto {
+    @IsString()
+    @Length(1, 100)
+    name: string;
+
+    @IsString()
+    @Length(1, 50)
+    @Matches(/^[a-z0-9-]+$/)
+    slug: string;
+
+    // ... 其他字段
+}
+```
+
+### Middleware (中間件)
+Express.js中的處理函數，用於執行請求處理前後的操作，如認證、日誌記錄等。
+
+```typescript
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        // ... 驗證邏輯
+        next();
+    } catch (error) {
+        // ... 錯誤處理
+    }
+};
+```
+
+### Controller (控制器)
+處理HTTP請求和響應的組件，負責驗證輸入、調用服務和格式化輸出。
+
+```typescript
+@Service()
+export class ProfileController {
+    constructor(private profileService: ProfileService) {}
+
+    createProfile = async (req: Request, res: Response) => {
+        // ... 處理邏輯
+    };
+}
+```
+
+### Service (服務)
+實現業務邏輯的組件，封裝和協調核心功能，不直接處理HTTP細節。
+
+```typescript
+@Service()
+export class ProfileService {
+    async createProfile(data: CreateProfileDto, userId: string) {
+        // ... 業務邏輯
+    }
+}
+```
+
+### JWT (JSON Web Token)
+用於身份認證的令牌格式，包含簽名的用戶信息，存儲在授權頭中。
+
+```typescript
+const token = jwt.sign(
+    { id: user.id, email: user.email },
+    jwtConfig.secret,
+    { expiresIn: jwtConfig.expiresIn }
+);
+```
+
+### API Response (API響應)
+統一的API響應格式，通過ApiResponse工具類實現，包括成功和錯誤響應。
+
+```typescript
+// 成功響應
+return ApiResponse.success(res, { profile });
+
+// 錯誤響應
+return ApiResponse.error(res, message, code, details, status);
+```
+
+### API Error (API錯誤)
+自定義錯誤類型，包含錯誤代碼、消息和詳細信息，用於統一錯誤處理。
+
+```typescript
+export interface ApiError extends Error {
+    status?: number;
+    code?: string;
+    details?: any;
+}
+```
+
+### class-validator
+用於驗證請求數據的庫，通過裝飾器定義驗證規則。
+
+```typescript
+export class CreateUserDto {
+    @IsEmail()
+    email: string;
+
+    @IsString()
+    @Length(8, 30)
+    password: string;
+}
+```
+
+### class-transformer
+用於轉換請求數據的庫，將普通對象轉換為強類型類實例。
+
+```typescript
+const userDto = plainToClass(CreateUserDto, req.body);
+```
+
+### multer
+用於處理文件上傳的Express.js中間件。
+
+```typescript
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+});
+```
+
+### TypeDI
+依賴注入框架，用於管理服務實例和依賴關係。
+
+```typescript
+@Service()
+export class UserController {
+    constructor(
+        private readonly userService: UserService,
+        private readonly emailService: EmailService
+    ) {}
+}
+```
+
+## 架構相關術語
+
+### 分層架構 (Layered Architecture)
+項目採用的架構模式，將應用程序分為不同的職責層，每層只與相鄰層交互。
+
+```
+HTTP請求 → 中間件 → 路由 → 控制器 → 服務 → 數據訪問 → 數據庫
+```
+
+### 模塊化單體 (Modular Monolith)
+項目的架構類型，作為單一部署單元運行，但內部代碼按邏輯功能和業務域進行模塊化組織。
+
+```
+NFC_LinkCard_Express
+├── src/
+│   ├── common/           # 共享代碼
+│   ├── core/             # 核心功能
+│   ├── association/      # 協會版特定功能
+│   └── ... 其他模塊
+```
+
+### 技術分層 (Technical Layers)
+按技術職責劃分的代碼組織方式，包括控制器、服務、DTO等。
+
+```
+src/
+├── controllers/
+├── services/
+├── dtos/
+├── middleware/
+└── ... 其他技術層
+```
+
+### 業務模塊 (Business Module)
+按業務功能劃分的代碼組織方式，如association模塊包含協會相關的所有功能。
+
+```
+src/association/
+├── controllers/
+├── services/
+├── dtos/
+└── routes/
+```
+
+### 依賴注入 (Dependency Injection)
+通過TypeDI實現的設計模式，允許服務實例和依賴關係的自動管理。
+
+```typescript
+@Service()
+export class ProfileService {
+    constructor(
+        private readonly storageService: StorageService,
+        private readonly analyticsService: AnalyticsService
+    ) {}
+}
+```
+
+### 倉儲模式 (Repository Pattern)
+通過Prisma ORM實現的數據訪問抽象，將數據訪問邏輯與業務邏輯分離。
+
+```typescript
+// 使用Prisma Client實現倉儲模式
+const profile = await prisma.profile.findUnique({
+    where: { id },
+    include: { links: true }
+});
+```
+
+## API和請求/響應術語
+
+### RESTful API
+項目採用的API設計風格，使用HTTP方法操作資源，並通過URL定位資源。
+
+| HTTP方法 | 用途 | 示例 |
+|---------|-----|------|
+| GET | 獲取資源 | `GET /api/profiles/123` |
+| POST | 創建資源 | `POST /api/profiles` |
+| PUT | 全量更新資源 | `PUT /api/profiles/123` |
+| PATCH | 部分更新資源 | `PATCH /api/profiles/123` |
+| DELETE | 刪除資源 | `DELETE /api/profiles/123` |
+
+### 端點 (Endpoint)
+API的訪問路徑，用於定位和操作特定資源。
+
+```typescript
+router.post('/profiles', authMiddleware, profileController.createProfile);
+router.get('/profiles/:id', profileController.getProfileById);
+```
+
+### 請求體 (Request Body)
+HTTP請求中包含的數據，通常以JSON格式提交。
+
+```typescript
+// 請求體示例
+{
+    "name": "我的個人名片",
+    "slug": "my-personal-card",
+    "isPublic": true
+}
+```
+
+### 路由參數 (Route Params)
+URL路徑中的變量部分，通過req.params訪問。
+
+```typescript
+// URL: /api/profiles/123
+const id = req.params.id; // "123"
+```
+
+### 查詢參數 (Query Params)
+URL中?後的參數，通過req.query訪問。
+
+```typescript
+// URL: /api/profiles?page=2&limit=10
+const page = req.query.page; // "2"
+const limit = req.query.limit; // "10"
+```
+
+### 響應格式 (Response Format)
+統一的API響應結構，分為成功響應和錯誤響應。
+
+**成功響應**：
+```json
+{
+    "success": true,
+    "data": {
+        // 響應數據...
+    }
+}
+```
+
+**錯誤響應**：
+```json
+{
+    "success": false,
+    "error": {
+        "message": "錯誤消息",
+        "code": "ERROR_CODE",
+        "details": "詳細錯誤信息"
+    }
+}
+```
+
+### 狀態碼 (Status Code)
+HTTP響應狀態碼，表示請求的結果。
+
+- 200: 成功的GET、PUT、PATCH請求
+- 201: 成功的POST請求（創建資源）
+- 204: 成功的DELETE請求（無內容返回）
+- 400: 客戶端錯誤（數據驗證失敗等）
+- 401: 未授權（未登錄）
+- 403: 權限不足
+- 404: 資源不存在
+- 500: 服務器錯誤
+
+### 錯誤代碼 (Error Code)
+自定義的錯誤標識符，用於客戶端識別錯誤類型。
+
+```typescript
+return ApiResponse.error(
+    res,
+    '創建檔案失敗',
+    'PROFILE_CREATE_ERROR',
+    error.message,
+    500
+);
+```
+
+### Swagger/OpenAPI
+API文檔系統，通過JSDoc註解生成API文檔。
+
+```typescript
+/**
+ * @swagger
+ * /api/profiles:
+ *   post:
+ *     summary: 創建新檔案
+ *     tags: [Profiles]
+ *     responses:
+ *       201:
+ *         description: 檔案創建成功
+ */
+```
+
+## 安全相關術語
+
+### 認證 (Authentication)
+驗證用戶身份的過程，在系統中主要通過JWT實現。
+
+```typescript
+// 登入成功後生成JWT令牌
+const token = jwt.sign(
+    { id: user.id, email: user.email },
+    jwtConfig.secret,
+    { expiresIn: jwtConfig.expiresIn }
+);
+```
+
+### 授權 (Authorization)
+檢查用戶權限的過程，確定用戶是否有權執行特定操作。
+
+```typescript
+// 檢查用戶是否有權更新資源
+const canUpdate = await this.memberService.canUserManageMembers(id, userId);
+if (!canUpdate) {
+    return ApiResponse.error(res, '無權更新會員', 'PERMISSION_DENIED', null, 403);
+}
+```
+
+### 身份驗證中間件 (Auth Middleware)
+驗證API請求中的JWT令牌，確保用戶已登入。
+
+```typescript
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        // ... 驗證令牌
+        req.user = user;
+        next();
+    } catch (error) {
+        // ... 錯誤處理
+    }
+};
+```
+
+### 密碼加密 (Password Encryption)
+使用bcrypt進行的密碼加密，保護用戶密碼安全。
+
+```typescript
+// 密碼加密
+const hashedPassword = await bcrypt.hash(password, 10);
+
+// 密碼驗證
+const isPasswordValid = await bcrypt.compare(password, user.password);
+```
+
+### 角色 (Role)
+用戶的權限級別，如ADMIN、MEMBER，用於控制訪問權限。
+
+```typescript
+// 在協會中的角色
+enum MemberRole {
+  ADMIN  // 管理員
+  MEMBER // 普通成員
+}
+```
+
+### 權限檢查 (Permission Check)
+檢查用戶是否有權執行操作的邏輯。
+
+```typescript
+// 檢查操作權限
+if (role === 'ADMIN') {
+    // 提升為管理員：需要是協會擁有者或管理員
+    const canPromote = userRole === 'OWNER' || userRole === 'ADMIN';
+    if (!canPromote) {
+        return ApiResponse.error(
+            res,
+            '無權將會員提升為管理員',
+            'PERMISSION_DENIED',
+            null,
+            403
+        );
+    }
+}
+```
+
+### CORS (跨域資源共享)
+控制跨域請求的安全機制，防止未授權的域訪問API。
+
+```typescript
+// CORS配置
+app.use(cors({
+    origin: [...允許的來源列表...],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization'],
+    credentials: true,
+    maxAge: 86400,
+}));
+```
+
+## 數據庫和ORM術語
+
+### PostgreSQL
+項目使用的關係型數據庫，提供可靠的數據存儲和查詢能力。
+
+### Prisma ORM
+用於數據庫訪問的對象關係映射工具，提供類型安全的數據庫操作。
+
+```typescript
+// Prisma Client初始化
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+```
+
+### Schema (模式)
+在schema.prisma中定義的數據庫結構，包括模型、關係和索引。
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  // ... 模型定義
+}
+```
+
+### Model (模型)
+Prisma中定義的數據實體，對應數據庫表，包含字段和關係定義。
+
+```prisma
+model Profile {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  user_id       String    @map("user_id")
+  user          User      @relation(fields: [user_id], references: [id])
+  links         Link[]
+  // ... 其他字段
+}
+```
+
+### Migration (遷移)
+數據庫結構變更的版本控制機制，通過Prisma Migrate管理。
+
+```bash
+# 創建遷移
+npx prisma migrate dev --name add_new_field
+
+# 應用遷移
+npx prisma migrate deploy
+```
+
+### Relation (關聯)
+模型之間的關係，如一對多、多對多等，在Prisma中定義。
+
+```prisma
+// 一對多關係
+model User {
+  id       String    @id @default(uuid())
+  profiles Profile[] // 一個用戶有多個檔案
+}
+
+model Profile {
+  id      String @id @default(uuid())
+  user_id String @map("user_id")
+  user    User   @relation(fields: [user_id], references: [id]) // 一個檔案屬於一個用戶
+}
+```
+
+### Index (索引)
+提高查詢效率的數據庫結構，在Prisma中定義。
+
+```prisma
+model Profile {
+  // ... 字段定義
+  
+  @@index([user_id])
+}
+```
+
+### Transaction (事務)
+保證數據完整性的操作單元，通過Prisma事務API實現。
+
+```typescript
+// 使用事務同時創建檔案和連結
+const result = await prisma.$transaction(async (tx) => {
+  const profile = await tx.profile.create({ data: profileData });
+  const link = await tx.link.create({
+    data: {
+      ...linkData,
+      profile_id: profile.id
+    }
+  });
+  return { profile, link };
+});
+```
+
+### CRUD操作
+通過Prisma執行的創建(Create)、讀取(Read)、更新(Update)、刪除(Delete)操作。
+
+```typescript
+// 創建
+const user = await prisma.user.create({ data: userData });
+
+// 讀取
+const profile = await prisma.profile.findUnique({ where: { id } });
+
+// 更新
+const updatedLink = await prisma.link.update({
+  where: { id },
+  data: { title: newTitle }
+});
+
+// 刪除
+await prisma.profile.delete({ where: { id } });
+```
+
+## 特殊功能術語
+
+### Slug (自定義URL)
+檔案的自定義URL部分，用於訪問檔案，如 example.com/username/my-card。
+
+```typescript
+// 生成和驗證slug
+const slug = generateSlug(name);
+const isSlugAvailable = await this.isSlugAvailable(slug, userId);
+```
+
+### 檔案封面 (Profile Image)
+檔案的顯示圖片，通過文件上傳功能管理。
+
+```typescript
+// 上傳檔案封面
+const imageUrl = await this.storageService.uploadProfileImage(file);
+await prisma.profile.update({
+  where: { id },
+  data: { profile_image: imageUrl }
+});
+```
+
+### 連結點擊 (Link Click)
+用戶點擊檔案中連結的記錄，用於分析統計。
+
+```typescript
+// 記錄連結點擊
+await prisma.link.update({
+  where: { id },
+  data: { click_count: { increment: 1 } }
+});
+
+// 創建分析記錄
+await prisma.analytics.create({
+  data: {
+    user_id: link.user_id,
+    link_id: link.id,
+    visitor_ip: req.ip,
+    // ... 其他數據
+  }
+});
+```
+
+### 潛在客戶獲取 (Lead Capture)
+通過檔案收集潛在客戶信息的功能。
+
+```typescript
+// 配置潛在客戶表單
+await prisma.profile.update({
+  where: { id },
+  data: {
+    enable_lead_capture: true,
+    lead_capture_fields: leadFields
+  }
+});
+
+// 收集潛在客戶
+await prisma.lead.create({
+  data: {
+    profile_id: profileId,
+    first_name: firstName,
+    last_name: lastName,
+    email: email,
+    // ... 其他字段
+  }
+});
+```
+
+### 訪客追蹤 (Visitor Tracking)
+記錄檔案訪問信息的功能，包括地理位置、設備和來源。
+
+```typescript
+// 記錄訪問數據
+await prisma.analytics.create({
+  data: {
+    user_id: profile.user_id,
+    visitor_ip: req.ip,
+    user_agent: req.headers['user-agent'],
+    referer: req.headers.referer,
+    country: geoData?.country,
+    city: geoData?.city,
+    // ... 其他數據
+  }
+});
+```
+
+### 協會徽章 (Association Badge)
+顯示在用戶檔案上的協會標識，可以自定義顯示方式。
+
+```typescript
+// 添加協會徽章到檔案
+await prisma.profileBadge.create({
+  data: {
+    profileId: profileId,
+    associationId: associationId,
+    displayMode: BadgeDisplayMode.FULL,
+    // ... 其他設置
+  }
+});
+```
+
+### 會員管理 (Member Management)
+協會版中的成員管理功能，包括添加、刪除和更新成員。
+
+```typescript
+// 添加成員到協會
+await prisma.associationMember.create({
+  data: {
+    associationId: id,
+    userId: memberId,
+    role: MemberRole.MEMBER,
+    // ... 其他數據
+  }
+});
+```
+
+### 自定義域名 (Custom Domain)
+為檔案設置的自定義域名，允許使用個人或品牌域名訪問檔案。
+
+```typescript
+// 設置自定義域名
+await prisma.profile.update({
+  where: { id },
+  data: { custom_domain: domain }
+});
+```
+
+### NFC技術
+近場通訊技術，用於實體名片與數字名片的連接，通過掃描NFC標籤訪問數字名片。

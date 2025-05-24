@@ -1,0 +1,802 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NFC LinkCard Express - API 規範
+
+本文檔定義了 NFC LinkCard Express 專案的 API 設計標準和最佳實踐，旨在確保一致性、可維護性和高品質的 API 實現。所有新開發的 API 應遵循本規範。
+
+## 目錄
+
+- [總體設計原則](mdc:#總體設計原則)
+- [URL 和資源命名](mdc:#url-和資源命名)
+- [HTTP 方法使用標準](mdc:#http-方法使用標準)
+- [請求格式和數據驗證](mdc:#請求格式和數據驗證)
+- [響應格式和狀態碼](mdc:#響應格式和狀態碼)
+- [錯誤處理和異常報告](mdc:#錯誤處理和異常報告)
+- [認證和授權機制](mdc:#認證和授權機制)
+- [版本控制策略](mdc:#版本控制策略)
+- [分頁、排序和過濾](mdc:#分頁排序和過濾)
+- [API 文檔和 Swagger](mdc:#api-文檔和-swagger)
+- [安全性考慮](mdc:#安全性考慮)
+- [性能優化建議](mdc:#性能優化建議)
+- [文件上傳處理](mdc:#文件上傳處理)
+- [API 實現架構](mdc:#api-實現架構)
+
+## 總體設計原則
+
+### RESTful API 設計原則
+
+專案採用 RESTful 架構風格設計 API，主要原則包括：
+
+1. **資源導向**：API 圍繞資源設計，使用名詞表示資源
+2. **HTTP 方法語義**：使用標準 HTTP 方法表示操作
+3. **無狀態**：服務器不保存客戶端狀態，每個請求包含處理所需的所有信息
+4. **統一接口**：使用一致的 URL 結構和響應格式
+5. **分層系統**：客戶端無需了解後端實現細節
+
+### API 設計最佳實踐
+
+✅ **使用適當的 HTTP 方法表示操作**
+```
+GET：獲取資源
+POST：創建資源
+PUT：全量更新資源
+PATCH：部分更新資源
+DELETE：刪除資源
+```
+
+✅ **使用 HTTP 狀態碼表示結果**
+```
+2xx：成功
+4xx：客戶端錯誤
+5xx：服務器錯誤
+```
+
+✅ **提供清晰的錯誤訊息**
+```
+描述性錯誤消息
+唯一的錯誤代碼
+詳細的錯誤信息（適當時）
+```
+
+✅ **使用 JSON 作為數據交換格式**
+
+## URL 和資源命名
+
+### URL 結構
+
+```
+https://api.example.com/api/[resource]/[identifier]/[sub-resource]
+```
+
+### 命名約定
+
+1. **基礎路徑**：所有 API 路徑以 `/api` 開頭
+
+2. **資源名稱**：
+   - 使用複數名詞：`/api/profiles`、`/api/users`
+   - 全小寫字母
+   - 資源名稱應使用名詞，而非動詞
+
+3. **URL 格式**：
+   - 使用連字符（kebab-case）：`/api/reset-password`
+   - 避免使用下劃線或駝峰命名
+
+4. **路徑參數**：
+   - 使用冒號標記：`/profiles/:id`、`/profiles/:slug`
+   - 參數名應清晰表示其作用
+
+5. **查詢參數**：
+   - 使用小駝峰命名法（camelCase）：`?sortBy=createdAt`
+   - 複雜查詢使用方括號表示：`?filter[status]=active`
+
+6. **子資源表示**：
+   - 使用嵌套路徑表示關係：`/profiles/:id/links`
+   - 避免過深嵌套（不超過 2-3 層）
+
+### 示例
+
+✅ **良好的 URL 設計**：
+```
+GET /api/profiles                   # 獲取所有檔案
+GET /api/profiles/:id               # 獲取特定檔案
+POST /api/profiles                  # 創建新檔案
+PATCH /api/profiles/:id             # 更新檔案
+DELETE /api/profiles/:id            # 刪除檔案
+GET /api/profiles/:id/links         # 獲取檔案的所有連結
+POST /api/profiles/:id/links        # 向檔案添加連結
+```
+
+❌ **避免的做法**：
+```
+GET /api/getProfiles                # 使用動詞
+GET /api/profile/:id                # 使用單數
+POST /api/createProfile             # 使用動詞
+```
+
+## HTTP 方法使用標準
+
+| HTTP 方法 | 用途 | 示例 | 響應狀態碼 |
+|----------|------|------|-----------|
+| GET | 獲取資源，不修改狀態 | `GET /api/profiles/:id` | 200 (OK) |
+| POST | 創建新資源 | `POST /api/profiles` | 201 (Created) |
+| PUT | 全量更新資源，替換所有字段 | `PUT /api/profiles/:id` | 200 (OK) |
+| PATCH | 部分更新資源，只修改提供的字段 | `PATCH /api/profiles/:id` | 200 (OK) |
+| DELETE | 刪除資源 | `DELETE /api/profiles/:id` | 204 (No Content) |
+
+### 方法特性
+
+1. **GET**
+   - 只讀操作，不應修改資源
+   - 可緩存
+   - 應是冪等的（多次調用結果相同）
+
+2. **POST**
+   - 不是冪等的（多次調用可能創建多個資源）
+   - 用於創建新資源或執行複雜操作
+
+3. **PUT**
+   - 冪等的（多次調用結果相同）
+   - 客戶端提供完整資源表示，替換整個資源
+
+4. **PATCH**
+   - 部分更新資源
+   - 只修改提供的字段，其他字段保持不變
+
+5. **DELETE**
+   - 刪除指定資源
+   - 冪等的（刪除已刪除的資源不會報錯）
+
+### 推薦做法
+
+✅ **HTTP 方法使用**：
+- 使用 GET 獲取資源，而非 POST
+- 使用 PATCH 進行部分更新，而非 PUT
+- 對於複雜操作，可以使用 POST 配合動作風格端點
+
+✅ **RESTful 操作映射**：
+- 集合操作（複數資源）：
+  - 列表：`GET /resources`
+  - 創建：`POST /resources`
+- 實例操作（單個資源）：
+  - 讀取：`GET /resources/:id`
+  - 更新：`PATCH /resources/:id`
+  - 刪除：`DELETE /resources/:id`
+
+## 請求格式和數據驗證
+
+### 請求格式
+
+1. **Content-Type**：
+   - JSON 請求使用 `application/json`
+   - 表單請求使用 `application/x-www-form-urlencoded`
+   - 文件上傳使用 `multipart/form-data`
+
+2. **JSON 格式**：
+   - 使用駝峰命名法（camelCase）命名字段
+   - 日期格式使用 ISO 8601 標準：`YYYY-MM-DDTHH:mm:ss.sssZ`
+   - 布爾值使用 `true`/`false`，而非 `1`/`0`
+
+### 數據驗證
+
+專案使用 DTO (數據傳輸對象) 模式和 class-validator 庫進行數據驗證：
+
+```typescript
+// DTO 定義
+export class CreateProfileDto {
+    @IsString()
+    @Length(1, 100)
+    name: string;
+
+    @IsString()
+    @Length(1, 50)
+    @Matches(/^[a-z0-9-]+$/)
+    slug: string;
+
+    @IsOptional()
+    @IsString()
+    description?: string;
+
+    @IsBoolean()
+    isPublic: boolean;
+}
+```
+
+```typescript
+// 控制器中的驗證
+const createProfileDto = plainToClass(CreateProfileDto, req.body);
+const errors = await validate(createProfileDto);
+
+if (errors.length > 0) {
+    return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+}
+```
+
+### 驗證最佳實踐
+
+✅ **驗證類型**：
+- 類型驗證：確保字段類型正確
+- 格式驗證：確保字段格式符合要求
+- 業務規則驗證：確保數據符合業務邏輯
+
+✅ **DTO 設計原則**：
+- 每種請求類型使用專門的 DTO 類
+- 使用裝飾器定義驗證規則
+- 包含明確的類型註解
+- 使用可選屬性表示非必須字段
+
+✅ **常用驗證規則**：
+- `@IsString()`：字符串類型
+- `@IsNumber()`：數字類型
+- `@IsBoolean()`：布爾類型
+- `@IsEmail()`：電子郵件格式
+- `@Length(min, max)`：字符串長度範圍
+- `@Min(val)` / `@Max(val)`：數字最小/最大值
+- `@IsOptional()`：可選字段
+- `@Matches(regex)`：正則表達式匹配
+
+## 響應格式和狀態碼
+
+### 標準響應格式
+
+專案使用統一的響應格式，通過 ApiResponse 工具類實現：
+
+1. **成功響應**：
+```json
+{
+    "success": true,
+    "data": {
+        // 響應數據...
+    }
+}
+```
+
+2. **錯誤響應**：
+```json
+{
+    "success": false,
+    "error": {
+        "message": "錯誤消息",
+        "code": "ERROR_CODE",
+        "details": "詳細錯誤信息"
+    }
+}
+```
+
+### HTTP 狀態碼使用
+
+| 狀態碼 | 描述 | 使用場景 |
+|-------|------|---------|
+| 200 | OK | 成功的 GET, PUT, PATCH 請求 |
+| 201 | Created | 成功的 POST 請求（創建資源） |
+| 204 | No Content | 成功的 DELETE 請求（無內容返回） |
+| 400 | Bad Request | 客戶端錯誤（如數據驗證失敗） |
+| 401 | Unauthorized | 未提供認證或認證無效 |
+| 403 | Forbidden | 認證有效但權限不足 |
+| 404 | Not Found | 請求的資源不存在 |
+| 422 | Unprocessable Entity | 請求格式正確但語義錯誤 |
+| 429 | Too Many Requests | 請求頻率超過限制 |
+| 500 | Internal Server Error | 服務器內部錯誤 |
+
+### 推薦做法
+
+✅ **響應格式化**：
+- 使用 ApiResponse 工具類統一響應格式
+- 包含操作狀態（success/false）
+- 區分數據和錯誤結構
+
+✅ **HTTP 狀態碼**：
+- 使用合適的 HTTP 狀態碼表示結果
+- 在錯誤響應中包含詳細信息
+- 保持前端和後端的狀態碼一致性
+
+## 錯誤處理和異常報告
+
+### 錯誤類型定義
+
+專案定義了自定義錯誤類型：
+
+```typescript
+export interface ApiError extends Error {
+    status?: number;
+    code?: string;
+    details?: any;
+}
+```
+
+### 錯誤處理方式
+
+1. **控制器中的錯誤處理**：
+```typescript
+try {
+    // 業務邏輯...
+} catch (error: unknown) {
+    const apiError = error as ApiError;
+    return ApiResponse.error(
+        res,
+        '操作失敗',
+        apiError.code || 'INTERNAL_ERROR',
+        apiError.details,
+        apiError.status || 500
+    );
+}
+```
+
+2. **自定義業務錯誤**：
+```typescript
+throw {
+    message: '資源不存在',
+    code: 'RESOURCE_NOT_FOUND',
+    status: 404,
+    details: { resourceId }
+} as ApiError;
+```
+
+3. **錯誤處理工具**：
+```typescript
+// ErrorHandler 工具類
+static forbidden(res: Response, message: string = '無權訪問', code: string = 'FORBIDDEN') {
+    return ApiResponse.error(res, message, code, null, 403);
+}
+
+static badRequest(res: Response, message: string, code: string = 'BAD_REQUEST') {
+    return ApiResponse.error(res, message, code, null, 400);
+}
+```
+
+### 錯誤處理最佳實踐
+
+✅ **異常捕獲**：
+- 在控制器層使用 try-catch 捕獲所有可能的錯誤
+- 將服務層錯誤轉換為適當的 API 錯誤
+- 使用統一的錯誤響應格式
+
+✅ **錯誤代碼**：
+- 使用唯一的錯誤代碼標識不同類型的錯誤
+- 錯誤代碼應使用大寫字母和下劃線
+- 錯誤代碼應描述性強，如 `RESOURCE_NOT_FOUND`
+
+✅ **安全考慮**：
+- 避免在錯誤響應中暴露敏感信息
+- 生產環境中限制錯誤詳情
+- 記錄詳細錯誤信息以便調試
+
+## 認證和授權機制
+
+### JWT 認證
+
+專案使用 JWT (JSON Web Token) 進行認證：
+
+1. **Token 存儲**：
+   - JWT 令牌放置在 HTTP 頭的 Authorization 字段中
+   - 格式：`Bearer <token>`
+
+2. **認證中間件**：
+```typescript
+export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ message: '未授權訪問' });
+        }
+
+        const decoded = jwt.verify(token, jwtConfig.secret) as {
+            id: string;
+            email: string;
+        };
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.id },
+            select: { id: true, email: true, username: true },
+        });
+
+        if (!user) {
+            return res.status(401).json({ message: '用戶不存在' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error: unknown) {
+        return ApiResponse.error(
+            res,
+            '無效的 token',
+            'INVALID_TOKEN',
+            null,
+            401,
+        );
+    }
+};
+```
+
+### 授權控制
+
+授權檢查在控制器方法中進行：
+
+```typescript
+// 授權檢查示例
+if (profile.userId !== req.user.id) {
+    return ErrorHandler.forbidden(res, '無權編輯此檔案');
+}
+```
+
+### 認證和授權最佳實踐
+
+✅ **認證流程**：
+- 使用 JWT 進行無狀態認證
+- 令牌包含必要的用戶信息
+- 設置合理的令牌過期時間
+- 實現令牌刷新機制
+
+✅ **授權策略**：
+- 使用中間件進行認證
+- 在控制器方法中進行授權檢查
+- 基於角色或資源的權限控制
+- 返回明確的權限錯誤信息
+
+✅ **安全考慮**：
+- 使用 HTTPS 保護 API 通信
+- 妥善保管 JWT 密鑰
+- 避免在 JWT 中存儲敏感信息
+- 實現令牌撤銷機制
+
+## 版本控制策略
+
+### 版本控制方式
+
+推薦使用 URL 路徑版本控制：
+
+```
+/api/v1/profiles
+/api/v2/profiles
+```
+
+### 版本控制最佳實踐
+
+✅ **版本策略**：
+- 對外部 API 進行版本控制
+- 主版本號變更表示不兼容的變更
+- 次版本號變更表示向後兼容的功能添加
+- 修訂版本號變更表示向後兼容的錯誤修復
+
+✅ **推薦做法**：
+- 新功能在新版本中引入
+- 舊版本設定合理的維護和棄用時間表
+- 在文檔中清晰標記每個端點的版本信息
+- 提供版本遷移指南
+
+## 分頁、排序和過濾
+
+### 分頁實現
+
+```typescript
+// 控制器中的分頁處理
+const page = parseInt(req.query.page as string, 10) || 1;
+const limit = parseInt(req.query.limit as string, 10) || 10;
+
+// 服務層中的分頁實現
+const result = await this.associationService.findUserAssociations(userId, {
+    page,
+    limit,
+});
+
+// 分頁響應格式
+return ApiResponse.success(res, {
+    items: result.items,
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
+    pages: Math.ceil(result.total / result.limit)
+});
+```
+
+### 排序和過濾
+
+推薦的查詢參數命名：
+
+1. **排序**：
+   - 單字段排序：`?sort=fieldName` 或 `?sort=-fieldName`（降序）
+   - 多字段排序：`?sort=field1,-field2`
+
+2. **過濾**：
+   - 精確匹配：`?field=value`
+   - 範圍查詢：`?field[gt]=value` 或 `?field[lt]=value`
+   - 多值查詢：`?field=value1,value2`
+   - 複雜查詢：`?filter[field]=value`
+
+### 推薦做法
+
+✅ **分頁設計**：
+- 使用 `page` 和 `limit` 參數控制分頁
+- 設置合理的默認值和上限
+- 在響應中包含分頁元數據
+
+✅ **排序和過濾**：
+- 使用一致的參數命名約定
+- 支持多字段排序和複雜過濾
+- 限制排序和過濾的字段範圍
+- 驗證排序和過濾參數
+
+## API 文檔和 Swagger
+
+### Swagger 配置
+
+專案使用 Swagger/OpenAPI 進行 API 文檔生成：
+
+```typescript
+const options: swaggerJsdoc.Options = {
+    definition: {
+        openapi: '3.0.0',
+        info: {
+            title: 'NFC LinkCard Express API',
+            version: '1.0.0',
+            description: 'API documentation for the NFC LinkCard Express backend service...',
+        },
+        // ... 其他配置
+    },
+    apis: [
+        path.join(__dirname, '../**/*.controller.ts'),
+        path.join(__dirname, '../**/routes/**/*.ts'),
+    ],
+};
+```
+
+### API 註解
+
+使用 JSDoc 註解生成 API 文檔：
+
+```typescript
+/**
+ * @openapi
+ * /api/profiles:
+ *   post:
+ *     tags:
+ *       - Profiles
+ *     summary: 創建新檔案
+ *     description: 創建一個新的用戶檔案（數字名片）
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateProfileDto'
+ *     responses:
+ *       '201':
+ *         description: 檔案創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ApiResponseSuccessProfile'
+ *       '400':
+ *         $ref: '#/components/responses/BadRequest'
+ *       '401':
+ *         $ref: '#/components/responses/Unauthorized'
+ *       '500':
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+```
+
+### 文檔最佳實踐
+
+✅ **文檔組織**：
+- 按資源或功能分組 API
+- 使用標籤分類 API
+- 提供清晰的概述和描述
+
+✅ **API 描述**：
+- 包含所有必要的請求和響應信息
+- 描述安全要求
+- 使用模式引用保持一致性
+- 提供示例請求和響應
+
+✅ **文檔維護**：
+- 保持文檔與代碼同步
+- 在 CI/CD 流程中集成文檔生成
+- 定期審查和更新文檔
+
+## 安全性考慮
+
+### CORS 配置
+
+專案配置了詳細的 CORS 設置：
+
+```typescript
+app.use(
+    cors({
+        origin: [
+            'http://127.0.0.1:3005',
+            'http://localhost:3005',
+            // ... 其他允許的來源
+        ],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        exposedHeaders: ['Authorization'],
+        credentials: true,
+        maxAge: 86400
+    })
+);
+```
+
+### 安全最佳實踐
+
+✅ **輸入驗證**：
+- 驗證所有客戶端輸入
+- 防止 SQL 注入和 XSS 攻擊
+- 使用參數化查詢或 ORM
+
+✅ **認證和授權**：
+- 實施強認證機制
+- 基於最小權限原則進行授權
+- 保護敏感端點
+
+✅ **資料保護**：
+- 加密敏感數據
+- 使用 HTTPS 進行通信
+- 實施適當的跨域策略
+
+✅ **速率限制**：
+- 限制每個用戶的請求頻率
+- 防止暴力破解和 DoS 攻擊
+- 實施漸進式延遲或封禁策略
+
+## 性能優化建議
+
+### 數據庫查詢優化
+
+```typescript
+// 只選擇必要的字段
+const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true } // 只選擇需要的字段
+});
+
+// 使用 include 而非多次查詢
+const profile = await prisma.profile.findUnique({
+    where: { id },
+    include: { links: true } // 一次性獲取關聯數據
+});
+```
+
+### 並行處理
+
+```typescript
+// 並行處理多個獨立操作
+const [user, profiles, stats] = await Promise.all([
+    userService.getUser(userId),
+    profileService.getUserProfiles(userId),
+    statsService.getUserStats(userId)
+]);
+```
+
+### 性能最佳實踐
+
+✅ **查詢優化**：
+- 只選擇必要的字段
+- 使用適當的索引
+- 優化復雜查詢
+
+✅ **減少響應大小**：
+- 實施數據分頁
+- 只返回必要的數據
+- 考慮使用壓縮
+
+✅ **緩存策略**：
+- 緩存靜態資源
+- 考慮實現數據緩存
+- 使用條件請求（ETag, Last-Modified）
+
+## 文件上傳處理
+
+### Multer 配置
+
+專案使用 multer 處理文件上傳：
+
+```typescript
+// 配置 multer
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 限制上傳大小為 5MB
+    },
+    fileFilter: (req, file, cb) => {
+        // 驗證文件類型
+        if (!file.mimetype.startsWith('image/')) {
+            return cb(new Error('只允許上傳圖片文件'));
+        }
+        cb(null, true);
+    },
+});
+
+// 在路由中應用
+router.post(
+    '/:id/image',
+    authMiddleware,
+    upload.single('image') as any,
+    profileController.uploadProfileImage
+);
+```
+
+### 文件上傳最佳實踐
+
+✅ **安全性**：
+- 驗證文件類型和大小
+- 使用安全的存儲機制
+- 掃描上傳的文件是否有惡意內容
+
+✅ **用戶體驗**：
+- 支持多文件上傳
+- 實現上傳進度指示
+- 提供文件預覽功能
+
+✅ **存儲考慮**：
+- 使用專門的存儲服務（如 AWS S3, Vercel Blob）
+- 實施適當的文件組織策略
+- 考慮文件過期和清理策略
+
+## API 實現架構
+
+### 分層架構
+
+專案採用分層架構模式：
+
+```
+控制器層 (Controllers)：處理 HTTP 請求和響應
+    ↓
+服務層 (Services)：實現業務邏輯
+    ↓
+數據訪問層 (Data Access)：與數據庫交互
+```
+
+### 依賴注入
+
+使用 TypeDI 進行依賴注入：
+
+```typescript
+@Service()
+export class ProfileController {
+    constructor(
+        private readonly profileService: ProfileService,
+        private readonly analyticsService: AnalyticsService
+    ) {}
+}
+```
+
+### 路由組織
+
+模塊化的路由組織：
+
+```typescript
+// 主路由文件
+const router = Router();
+router.use('/auth', authRoutes);
+router.use('/profiles', profileRoutes);
+export default router;
+
+// 功能特定路由
+const router = Router();
+// 公開路由
+router.get('/:slug', profileController.getBySlug);
+// 需要認證的路由
+router.use(authMiddleware);
+router.post('/', profileController.create);
+```
+
+### 架構最佳實踐
+
+✅ **關注點分離**：
+- 控制器只處理 HTTP 層面的邏輯
+- 服務層封裝業務邏輯
+- 數據訪問層處理數據庫交互
+
+✅ **模塊化**：
+- 按功能域組織代碼
+- 使用依賴注入促進解耦
+- 保持組件的單一職責
+
+✅ **可測試性**：
+- 使用依賴注入便於單元測試
+- 使用接口而非具體實現
+- 避免全局狀態和硬編碼依賴
