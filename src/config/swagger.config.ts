@@ -100,7 +100,172 @@ const options: swaggerJsdoc.Options = {
                         message: { type: 'string' },
                     },
                 },
-                // You might need schemas for other DTOs like UpdateAssociationDto, AssociationSummary, ApiResponseAssociationList etc.
+                // Added Schemas for Property Management MVP
+                LinkPropertyWithCodeDto: {
+                    type: 'object',
+                    required: [
+                        'propertyManagementCompanyCode',
+                        'propertyExternalId',
+                        'unitExternalId',
+                        'uniqueCode',
+                    ],
+                    properties: {
+                        propertyManagementCompanyCode: {
+                            type: 'string',
+                            example: 'LINK_API_PROVIDER',
+                            description: 'Code or ID for the PropertyManagementCompany',
+                        },
+                        propertyExternalId: {
+                            type: 'string',
+                            example: 'building_123',
+                            description: 'External ID of the property (e.g., building)',
+                        },
+                        unitExternalId: {
+                            type: 'string',
+                            example: 'unit_A101',
+                            description: 'External ID of the unit (e.g., apartment)',
+                        },
+                        uniqueCode: {
+                            type: 'string',
+                            example: 'ABCXYZ123',
+                            description: 'The unique code for linking',
+                        },
+                    },
+                },
+                PropertyResidentDto: {
+                    type: 'object',
+                    properties: {
+                        id: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'Internal ID of the resident link',
+                        },
+                        userId: { type: 'string', format: 'uuid', description: 'ID of the user' },
+                        propertyUnitId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'ID of the property unit',
+                        },
+                        unitNumber: {
+                            type: 'string',
+                            example: 'Flat 12B',
+                            description: 'Unit number',
+                        },
+                        propertyName: {
+                            type: 'string',
+                            example: 'Grand Building Tower A',
+                            description: 'Name of the property',
+                        },
+                        propertyAddress: {
+                            type: 'string',
+                            example: '123 Main St, Anytown',
+                            description: 'Address of the property',
+                        },
+                        verificationMethod: {
+                            type: 'string',
+                            enum: ['UNIQUE_CODE', 'ADMIN_APPROVAL'],
+                            nullable: true,
+                            description: 'Method used for verification',
+                        },
+                        meta: {
+                            type: 'object',
+                            nullable: true,
+                            description: 'Additional metadata',
+                        },
+                    },
+                },
+                ApiResponseSuccessPropertyResident: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', example: true },
+                        data: { $ref: '#/components/schemas/PropertyResidentDto' },
+                    },
+                },
+                ApiResponseSuccessListPropertyResident: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', example: true },
+                        data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/PropertyResidentDto' },
+                        },
+                    },
+                },
+                Facility: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', format: 'uuid' },
+                        name: { type: 'string', example: 'Gymnasium' },
+                        external_facility_id: {
+                            type: 'string',
+                            nullable: true,
+                            example: 'gym_001',
+                        },
+                        property_id: { type: 'string', format: 'uuid' },
+                        access_methods_supported: {
+                            type: 'object',
+                            example: { QR: true, NFC: false },
+                        },
+                        meta: { type: 'object', nullable: true },
+                    },
+                },
+                ApiResponseSuccessListFacility: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', example: true },
+                        data: {
+                            type: 'array',
+                            items: { $ref: '#/components/schemas/Facility' },
+                        },
+                    },
+                },
+                RequestFacilityAccessDto: {
+                    type: 'object',
+                    required: ['facilityId', 'accessMethod'],
+                    properties: {
+                        facilityId: {
+                            type: 'string',
+                            format: 'uuid',
+                            description: 'ID of the facility',
+                        },
+                        accessMethod: {
+                            type: 'string',
+                            enum: ['QR', 'NFC'],
+                            example: 'QR',
+                            description: 'Requested access method',
+                        },
+                    },
+                },
+                FacilityAccessCredentialDto: {
+                    type: 'object',
+                    properties: {
+                        credentialType: {
+                            type: 'string',
+                            enum: ['QR_CODE', 'NFC_DATA'],
+                            example: 'QR_CODE',
+                        },
+                        data: {
+                            type: 'string',
+                            example: 'raw_qr_data_or_nfc_payload',
+                            description: 'Credential data',
+                        },
+                        expiresAt: {
+                            type: 'string',
+                            format: 'date-time',
+                            example: '2024-12-31T23:59:59Z',
+                            description: 'Expiry time of the credential',
+                        },
+                        facilityName: { type: 'string', nullable: true, example: 'Gymnasium' },
+                    },
+                },
+                ApiResponseSuccessFacilityAccessCredential: {
+                    type: 'object',
+                    properties: {
+                        success: { type: 'boolean', example: true },
+                        data: { $ref: '#/components/schemas/FacilityAccessCredentialDto' },
+                    },
+                },
+                // End of Added Schemas for Property Management MVP
             },
             // Define reusable responses
             responses: {
@@ -199,16 +364,14 @@ const options: swaggerJsdoc.Options = {
             },
         ],
     },
-    // 指定包含 JSDoc/TSDoc 註解的文件路徑
+    // APIs array defines where swagger-jsdoc should look for JSDoc comments.
     apis: [
-        // 保留通用路徑
-        path.join(__dirname, '../**/*.controller.ts'),
-        path.join(__dirname, '../**/routes/**/*.ts'),
-        // 添加更明確指向 association 目錄的路徑
-        path.join(__dirname, '../association/controllers/**/*.ts'),
-        path.join(__dirname, '../association/routes/**/*.ts'),
-        // 如果 DTOs 文件中也包含需要被引用的 schema 定義，也可以加入：
-        // path.join(__dirname, '../dtos/**/*.dto.ts'),
+        path.join(__dirname, '../routes/**/*.ts'), // General routes
+        path.join(__dirname, '../controllers/**/*.ts'), // General controllers
+        path.join(__dirname, '../association/routes/**/*.ts'), // Association routes
+        path.join(__dirname, '../association/controllers/**/*.ts'), // Association controllers
+        path.join(__dirname, '../property/routes/**/*.ts'), // Property routes
+        path.join(__dirname, '../property/controllers/**/*.ts'), // Property controllers
     ],
 };
 

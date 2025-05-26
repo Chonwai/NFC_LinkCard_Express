@@ -37,6 +37,7 @@ model User {
   analytics              Analytics[]
   association            Association?
   memberOf               AssociationMember[]
+  propertyResidents      PropertyResident[]
 
   @@map("users")
 }
@@ -323,4 +324,121 @@ model MembershipHistory {
 
   @@index([association_member_id])
   @@map("membership_history")
+}
+
+// Enum for Resident Verification Method
+enum ResidentVerificationMethod {
+  UNIQUE_CODE
+  ADMIN_APPROVAL
+  // Add other methods if needed in the future
+}
+
+// Model for Property Management Company (if you plan to support multiple PMS integrations)
+// For MVP, if only one PMS (link-api), this might be simplified or configured elsewhere.
+// Let's assume for now we might support multiple, or use this to store link-api specific config.
+model PropertyManagementCompany {
+  id           String     @id @default(uuid())
+  name         String // e.g., "Link API Provider"
+  api_endpoint String // Base URL for the link-api
+  api_key      String? // API key if required, store securely
+  meta         Json?      @default("{}") // For any other configurations
+  properties   Property[]
+  created_at   DateTime   @default(now()) @map("created_at")
+  updated_at   DateTime   @updatedAt @map("updated_at")
+
+  @@map("property_management_companies")
+}
+
+// Model for Property (e.g., a building or estate)
+model Property {
+  id                             String                    @id @default(uuid())
+  name                           String // e.g., "Grand Building Tower A"
+  external_property_id           String?                   @unique @map("external_property_id") // ID from the link-api (Space ID for the property)
+  address                        String?
+  property_management_company_id String                    @map("property_management_company_id")
+  propertyManagementCompany      PropertyManagementCompany @relation(fields: [property_management_company_id], references: [id])
+  units                          PropertyUnit[]
+  facilities                     Facility[]
+  meta                           Json?                     @default("{}")
+  created_at                     DateTime                  @default(now()) @map("created_at")
+  updated_at                     DateTime                  @updatedAt @map("updated_at")
+
+  @@map("properties")
+}
+
+// Model for Property Unit (e.g., an apartment or office)
+model PropertyUnit {
+  id               String             @id @default(uuid())
+  unit_number      String // e.g., "Flat 12B", "Suite 101"
+  external_unit_id String?            @unique @map("external_unit_id") // ID from the link-api (Space ID for the unit)
+  property_id      String             @map("property_id")
+  property         Property           @relation(fields: [property_id], references: [id])
+  residents        PropertyResident[]
+  meta             Json?              @default("{}")
+  created_at       DateTime           @default(now()) @map("created_at")
+  updated_at       DateTime           @updatedAt @map("updated_at")
+
+  @@index([property_id])
+  @@map("property_units")
+}
+
+// Model linking User to a PropertyUnit (Resident)
+model PropertyResident {
+  id                       String                      @id @default(uuid())
+  user_id                  String                      @map("user_id")
+  user                     User                        @relation(fields: [user_id], references: [id])
+  property_unit_id         String                      @map("property_unit_id")
+  propertyUnit             PropertyUnit                @relation(fields: [property_unit_id], references: [id])
+  external_role_id         String?                     @map("external_role_id") // Role ID from link-api (e.g., resident role)
+  external_account_id      String?                     @map("external_account_id") // Account ID from link-api
+  external_subscription_id String?                     @map("external_subscription_id") // Subscription ID from link-api
+  verification_status      Boolean                     @default(false) @map("verification_status")
+  verification_method      ResidentVerificationMethod? @map("verification_method")
+  verified_at              DateTime?                   @map("verified_at")
+  meta                     Json?                       @default("{}") // e.g., store unique code used for linking, if applicable
+  created_at               DateTime                    @default(now()) @map("created_at")
+  updated_at               DateTime                    @updatedAt @map("updated_at")
+  facility_access_logs     FacilityAccessLog[]
+
+  @@unique([user_id, property_unit_id], name: "user_property_unit_unique_constraint")
+  @@index([user_id])
+  @@index([property_unit_id])
+  @@map("property_residents")
+}
+
+// Model for Facility (e.g., Gym, Elevator, Meeting Room)
+model Facility {
+  id                       String              @id @default(uuid())
+  name                     String // e.g., "Gymnasium"
+  external_facility_id     String?             @unique @map("external_facility_id") // ID from the link-api (Space ID for the facility)
+  property_id              String              @map("property_id")
+  property                 Property            @relation(fields: [property_id], references: [id])
+  access_methods_supported Json?               @default("{\"QR\": true, \"NFC\": false}") // e.g., { QR: true, NFC: true }
+  meta                     Json?               @default("{}")
+  created_at               DateTime            @default(now()) @map("created_at")
+  updated_at               DateTime            @updatedAt @map("updated_at")
+  facility_access_logs     FacilityAccessLog[]
+
+  @@index([property_id])
+  @@map("facilities")
+}
+
+// Model for Facility Access Log
+model FacilityAccessLog {
+  id                   String           @id @default(uuid())
+  property_resident_id String           @map("property_resident_id")
+  propertyResident     PropertyResident @relation(fields: [property_resident_id], references: [id])
+  facility_id          String           @map("facility_id")
+  facility             Facility         @relation(fields: [facility_id], references: [id])
+  access_time          DateTime         @default(now()) @map("access_time")
+  access_method        String // e.g., "QR", "NFC"
+  is_successful        Boolean          @map("is_successful")
+  external_log_id      String?          @map("external_log_id") // Log ID from link-api, if any
+  meta                 Json?            @default("{}") // e.g., failure reason, device info
+  created_at           DateTime         @default(now()) @map("created_at")
+  updated_at           DateTime         @updatedAt @map("updated_at")
+
+  @@index([property_resident_id])
+  @@index([facility_id])
+  @@map("facility_access_logs")
 }
