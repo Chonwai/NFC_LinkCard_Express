@@ -1,3 +1,11 @@
+import { Service, Inject } from 'typedi';
+import {
+    RequestFacilityAccessDto,
+    FacilityAccessCredentialDto,
+    FacilityAccessMethod,
+} from '../dtos/facility.dto';
+import { LinkApiIntegrationService } from './LinkApiIntegrationService';
+import { logger } from '../../utils/logger';
 import {
     PrismaClient,
     PropertyResident,
@@ -5,29 +13,23 @@ import {
     Facility as PrismaFacility, // Alias to avoid conflict with potential DTO
     PropertyManagementCompany,
 } from '@prisma/client';
-import { Service, Inject } from 'typedi';
-import {
-    RequestFacilityAccessDto,
-    FacilityAccessCredentialDto,
-    FacilityAccessMethod,
-} from '../dtos/facility.dto';
-import { LinkApiIntegrationService } from './linkApi.integration.service';
-import { logger } from '../../utils/logger';
 
 // Example DTO for facility if needed for local representation, otherwise use PrismaFacility
 export interface FacilityDto {
     id: string;
     name: string;
-    description?: string;
     // other relevant fields from your PrismaFacility model or link-api
 }
 
 @Service()
 export class FacilityService {
-    constructor(
-        @Inject('prisma') private readonly prisma: PrismaClient,
-        private readonly linkApiIntegrationService: LinkApiIntegrationService,
-    ) {}
+    private prisma: PrismaClient;
+    private linkApiIntegrationService: LinkApiIntegrationService;
+
+    constructor() {
+        this.prisma = new PrismaClient();
+        this.linkApiIntegrationService = new LinkApiIntegrationService();
+    }
 
     /**
      * Retrieves facilities available for a specific property unit a user is linked to.
@@ -59,10 +61,9 @@ export class FacilityService {
         });
 
         if (!residentLink || !residentLink.propertyUnit.property.propertyManagementCompany) {
-            throw {
-                status: 404,
-                message: 'No verified link found for this user and unit, or PMC not configured.',
-            };
+            throw new Error(
+                'No verified link found for this user and unit, or PMC not configured.',
+            );
         }
 
         const pmc = residentLink.propertyUnit.property.propertyManagementCompany;
@@ -123,11 +124,9 @@ export class FacilityService {
             !residentLink.external_account_id ||
             !residentLink.propertyUnit.property.propertyManagementCompany
         ) {
-            throw {
-                status: 403,
-                message:
-                    'User not properly linked or authorized for this unit, or PMC not configured.',
-            };
+            throw new Error(
+                'User not properly linked or authorized for this unit, or PMC not configured.',
+            );
         }
 
         const pmc = residentLink.propertyUnit.property.propertyManagementCompany;
@@ -139,10 +138,7 @@ export class FacilityService {
         });
 
         if (!facility || !facility.external_facility_id) {
-            throw {
-                status: 404,
-                message: 'Facility not found or not configured for external access.',
-            };
+            throw new Error('Facility not found or not configured for external access.');
         }
 
         const credentialResult =
@@ -153,13 +149,11 @@ export class FacilityService {
                 dto.accessMethod,
             );
 
-        if (!credentialResult.success || !credentialResult.data || !credentialResult.expiresAt) {
-            throw {
-                status: 502, // Bad Gateway, as error is from upstream PMS
-                message:
-                    credentialResult.message ||
+        if (!credentialResult.success) {
+            throw new Error(
+                credentialResult.message ||
                     'Failed to generate facility access credential from PMS.',
-            };
+            );
         }
 
         // Log the access attempt/credential generation
@@ -168,16 +162,19 @@ export class FacilityService {
                 property_resident_id: residentLink.id,
                 facility_id: dto.facilityId,
                 access_method: dto.accessMethod, // This should be FacilityAccessMethod enum from Prisma schema
-                credential_details: { pmsCredentialId: credentialResult.credentialIdFromPMS }, // Store PMS credential ID if available
-                requested_at: new Date(),
-                expires_at: new Date(credentialResult.expiresAt),
+                access_time: new Date(), // Record the time of credential generation/request
+                is_successful: true, // Assuming successful credential generation means a successful log entry init
+                meta: {
+                    credential_expires_at: credentialResult.expiresAt, // Store expiration from PMS here
+                    // you can add other details from credentialResult if needed
+                },
             },
         });
 
         return {
             credentialType: dto.accessMethod === FacilityAccessMethod.QR ? 'QR_CODE' : 'NFC_DATA',
             data: credentialResult.data,
-            expiresAt: credentialResult.expiresAt,
+            expiresAt: credentialResult.expiresAt || '',
             facilityName: facility.name, // Add facility name for context
         };
     }
@@ -186,7 +183,6 @@ export class FacilityService {
         return {
             id: facility.id,
             name: facility.name,
-            description: facility.description || undefined,
             // map other fields as necessary
         };
     }

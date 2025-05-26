@@ -17,6 +17,8 @@ app.use(
             'http://localhost:3005',
             'http://127.0.0.1:3020',
             'http://localhost:3020',
+            'http://127.0.0.1:4000',
+            'http://localhost:4000',
             'https://link-card-frontend.vercel.app',
             'http://link-card-frontend.vercel.app',
             'link-card-frontend.vercel.app',

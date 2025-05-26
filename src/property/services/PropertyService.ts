@@ -10,7 +10,7 @@ import {
 } from '@prisma/client';
 import { Service, Inject } from 'typedi';
 import { LinkPropertyWithCodeDto, PropertyResidentDto } from '../dtos/property.dto'; // Adjusted path
-import { LinkApiIntegrationService } from './linkApi.integration.service'; // Path remains similar if moved together
+import { LinkApiIntegrationService } from './LinkApiIntegrationService'; // Path remains similar if moved together
 // import { HttpError } from '../../utils/HttpError'; // Will be removed or replaced
 import { logger } from '../../utils/logger'; // Adjusted path
 
@@ -23,10 +23,13 @@ type PropertyResidentWithRelations = PropertyResident & {
 
 @Service()
 export class PropertyService {
-    constructor(
-        @Inject('prisma') private readonly prisma: PrismaClient,
-        private readonly linkApiIntegrationService: LinkApiIntegrationService,
-    ) {}
+    private prisma: PrismaClient;
+    private linkApiIntegrationService: LinkApiIntegrationService;
+
+    constructor() {
+        this.prisma = new PrismaClient();
+        this.linkApiIntegrationService = new LinkApiIntegrationService();
+    }
 
     /**
      * Links a user to a property unit using a unique code.
@@ -46,7 +49,7 @@ export class PropertyService {
 
         if (!pmc) {
             // Throwing a more generic error object, assuming controller handles it for ApiResponse
-            throw { status: 404, message: 'Property Management Company configuration not found.' };
+            throw new Error('Property Management Company configuration not found.');
         }
 
         const verificationResult = await this.linkApiIntegrationService.verifyUniqueCode(
@@ -58,10 +61,7 @@ export class PropertyService {
         );
 
         if (!verificationResult.success) {
-            throw {
-                status: 400,
-                message: verificationResult.message || 'Unique code verification failed.',
-            };
+            throw new Error(verificationResult.message || 'Unique code verification failed.');
         }
 
         let property = await this.prisma.property.findUnique({

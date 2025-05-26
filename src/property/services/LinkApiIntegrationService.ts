@@ -1,4 +1,4 @@
-import { Service, Inject } from 'typedi';
+import { Inject } from 'typedi';
 import { PropertyManagementCompany } from '@prisma/client';
 // import { HttpError } from '../../utils/HttpError'; // Will be removed
 import { logger } from '../../utils/logger'; // Adjusted path
@@ -31,7 +31,6 @@ interface LinkApiGenericResponse {
     [key: string]: any;
 }
 
-@Service()
 export class LinkApiIntegrationService {
     private httpClient: AxiosInstance;
 
