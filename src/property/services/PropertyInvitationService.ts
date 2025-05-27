@@ -89,11 +89,11 @@ export class PropertyInvitationService {
         });
 
         if (!invitation) {
-            throw new HttpError('Invitation not found.', 404, 'INVALID_INVITATION_TOKEN');
+            throw new HttpError(404, 'Invitation not found.', 'INVALID_INVITATION_TOKEN');
         }
 
         if (invitation.status !== InvitationStatus.PENDING) {
-            throw new HttpError('Invitation is no longer valid.', 400, 'INVITATION_NOT_PENDING');
+            throw new HttpError(400, 'Invitation is no longer valid.', 'INVITATION_NOT_PENDING');
         }
 
         if (invitation.expiresAt && invitation.expiresAt < new Date()) {
@@ -102,14 +102,14 @@ export class PropertyInvitationService {
                 where: { id: invitation.id },
                 data: { status: InvitationStatus.EXPIRED },
             });
-            throw new HttpError('Invitation has expired.', 400, 'INVITATION_EXPIRED');
+            throw new HttpError(400, 'Invitation has expired.', 'INVITATION_EXPIRED');
         }
 
         // Optional: Check if the email matches if the user is already logged in and email is set
         if (invitation.email.toLowerCase() !== linkCardUser.email.toLowerCase()) {
             throw new HttpError(
-                'This invitation is intended for a different email address.',
                 403,
+                'This invitation is intended for a different email address.',
                 'INVITATION_EMAIL_MISMATCH',
             );
         }
@@ -130,7 +130,7 @@ export class PropertyInvitationService {
         const profile = await this.propertyProfileService.createPropertyProfileForUser(
             linkCardUser.id,
             invitation.spaceId,
-            invitation.linkspaceUserId || undefined, // Pass undefined if null
+            invitation.linkspaceUserId || '', // Pass empty string if null
         );
 
         return { invitation: updatedInvitation, profile };
@@ -172,7 +172,7 @@ export class PropertyInvitationService {
             orderBy: { createdAt: 'desc' },
             include: {
                 invitedByUser: { select: { id: true, username: true, display_name: true } },
-                acceptedByUser: { select: { id: true, username: true, display_name: true } },
+                acceptedUser: { select: { id: true, username: true, display_name: true } },
             },
         });
     }
@@ -182,7 +182,7 @@ export class PropertyInvitationService {
             where: { invitedByUserId: userId },
             orderBy: { createdAt: 'desc' },
             include: {
-                acceptedByUser: { select: { id: true, username: true, display_name: true } },
+                acceptedUser: { select: { id: true, username: true, display_name: true } },
             },
         });
     }
