@@ -37,7 +37,8 @@ model User {
   analytics              Analytics[]
   association            Association?
   memberOf               AssociationMember[]
-  propertyInvitations    PropertyInvitation[] // Added for property MVP
+  propertyInvitations    PropertyInvitation[] @relation("AcceptedInvitations") // 已接受的邀請
+  sentPropertyInvitations PropertyInvitation[] @relation("SentInvitations")     // 已發送的邀請
 
   @@map("users")
 }
@@ -339,11 +340,18 @@ model PropertyInvitation {
   expiresAt        DateTime? // 令牌過期時間
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
-  acceptedByUserId String? // 接受邀請的 LinkCard User ID
-  acceptedUser     User?            @relation(fields: [acceptedByUserId], references: [id])
+  
+  acceptedByUserId String?          // 接受邀請的 LinkCard User ID
+  acceptedUser     User?            @relation("AcceptedInvitations", fields: [acceptedByUserId], references: [id])
+  
+  invitedByUserId  String           // 發起邀請的 LinkCard User ID
+  invitedByUser    User             @relation("SentInvitations", fields: [invitedByUserId], references: [id])
+  
+  acceptedAt       DateTime?        // 邀請被接受的時間
 
   @@index([email])
   @@index([spaceId])
+  @@index([invitedByUserId])
   @@map("property_invitations")
 }
 
