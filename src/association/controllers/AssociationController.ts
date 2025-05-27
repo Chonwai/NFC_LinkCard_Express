@@ -69,7 +69,7 @@ export class AssociationController {
             const errors = await validate(createAssociationDto);
 
             if (errors.length > 0) {
-                return ApiResponse.validationError(res, '驗證錯誤', 'VALIDATION_ERROR', errors);
+                return ApiResponse.validationError(res, errors);
             }
 
             const userId = req.user?.id;
@@ -188,7 +188,7 @@ export class AssociationController {
             const errors = await validate(dto);
 
             if (errors.length > 0) {
-                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+                return ApiResponse.validationError(res, errors);
             }
 
             // Re-added permission check as per original logic structure
@@ -372,7 +372,7 @@ export class AssociationController {
             const dto = plainToClass(CreateAssociationProfileDto, req.body);
             const errors = await validate(dto);
             if (errors.length > 0) {
-                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+                return ApiResponse.validationError(res, errors);
             }
 
             // 檢查用戶是否為協會成員 (調用現有服務方法)

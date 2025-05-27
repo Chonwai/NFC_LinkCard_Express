@@ -1,118 +1,52 @@
-import { Router } from 'express';
-import { Container } from 'typedi';
-import { authMiddleware } from '../../middleware/auth.middleware';
-import { PropertyController } from '../controllers/PropertyController';
-import { FacilityController } from '../controllers/FacilityController';
-import { Request, Response } from 'express';
+import { RequestHandler, Router } from 'express';
+import { Container } from 'typedi'; // Import Container
+import { PropertyInvitationController } from '../controllers/PropertyInvitationController';
+import { authMiddleware } from '../../middleware/auth.middleware'; // Path to your auth middleware
 
 const router = Router();
-
-// Get controller instances
-const propertyController = Container.get(PropertyController);
-const facilityController = Container.get(FacilityController);
-
-// --- Property Routes --- (Formerly in property.routes.ts)
+const invitationController = Container.get(PropertyInvitationController); // Corrected instantiation
 
 /**
  * @openapi
- * /link:  // Path adjusted for base path /api/property
- *   post:
- *     tags:
- *       - Property
- *     summary: Link user to a property unit using a unique code
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LinkPropertyWithCodeDto'
- *     responses:
- *       200: { description: 'Successfully linked to property unit', $ref: '#/components/schemas/ApiResponseSuccessPropertyResident' }
- *       400: { $ref: '#/components/responses/BadRequest' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       404: { $ref: '#/components/responses/NotFound' }
+ * tags:
+ *   name: Property Invitations
+ *   description: API endpoints for managing property invitations
  */
-router.post('/link', authMiddleware, propertyController.linkProperty);
 
-/**
- * @openapi
- * /linked-units: // Path adjusted for base path /api/property
- *   get:
- *     tags:
- *       - Property
- *     summary: Get all property units linked to the current user
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200: { description: 'List of linked property units', $ref: '#/components/schemas/ApiResponseSuccessListPropertyResident' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- */
-router.get('/linked-units', authMiddleware, propertyController.getLinkedProperties);
-
-// --- Facility Routes --- (Formerly in facility.routes.ts)
-// Note: Facility routes will be mounted under /api/facility, so paths here are relative to that.
-
-/**
- * @openapi
- * /unit/{propertyUnitId}: // Path adjusted for base path /api/facility
- *   get:
- *     tags:
- *       - Facility
- *     summary: Get facilities for a specific property unit linked to the user
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: propertyUnitId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: The ID of the property unit.
- *     responses:
- *       200: { description: 'List of facilities for the unit', $ref: '#/components/schemas/ApiResponseSuccessListFacility' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
-router.get('/unit/:propertyUnitId', authMiddleware, facilityController.getFacilities);
-
-/**
- * @openapi
- * /unit/{propertyUnitId}/request-access: // Path adjusted for base path /api/facility
- *   post:
- *     tags:
- *       - Facility
- *     summary: Request access credential for a facility within a specific property unit
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: propertyUnitId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: The ID of the property unit.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/RequestFacilityAccessDto'
- *     responses:
- *       200: { description: 'Facility access credential generated', $ref: '#/components/schemas/ApiResponseSuccessFacilityAccessCredential' }
- *       400: { $ref: '#/components/responses/BadRequest' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
- *       403: { $ref: '#/components/responses/Forbidden' }
- *       404: { $ref: '#/components/responses/NotFound' }
- */
+// POST /api/property/invitations - Create a new invitation
 router.post(
-    '/unit/:propertyUnitId/request-access',
-    authMiddleware,
-    facilityController.requestAccess,
+    '/',
+    authMiddleware, // Protected route
+    invitationController.createInvitation as RequestHandler,
 );
+
+// POST /api/property/invitations/accept - Accept an invitation
+router.post(
+    '/accept',
+    authMiddleware, // Protected: User must be logged in to LinkCard to accept
+    invitationController.acceptInvitation as RequestHandler,
+);
+
+// GET /api/property/invitations/token/:token - Get invitation details by token
+router.get(
+    '/token/:token',
+    // No auth needed for this one, as frontend might check token before login/signup
+    invitationController.getInvitationByToken as RequestHandler,
+);
+
+// GET /api/property/invitations/my-pending - Get pending invitations for the authenticated user
+router.get(
+    '/my-pending',
+    authMiddleware, // Protected route
+    invitationController.getMyPendingInvitations as RequestHandler,
+);
+
+// TODO: Add routes for admin/manager to view invitations for a space, resend, revoke, etc.
+// Example:
+// router.get(
+//     '/space/:spaceId',
+//     authMiddleware, // Protected & role-checked
+//     invitationController.getInvitationsForSpace // Method to be created in controller & service
+// );
 
 export default router;

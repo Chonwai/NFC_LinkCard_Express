@@ -1,0 +1,189 @@
+import { Service, Inject } from 'typedi';
+import { PrismaClient, PropertyInvitation, User, InvitationStatus } from '@prisma/client';
+import { randomBytes } from 'crypto';
+import {
+    CreatePropertyInvitationDto,
+    AcceptPropertyInvitationDto,
+} from '../dtos/propertyInvitation.dto';
+import { EmailService } from '../../services/EmailService'; // Assuming core EmailService path
+import { PropertyProfileService } from './PropertyProfileService';
+import { HttpError } from '../../utils/HttpError';
+import { Config } from '../../config'; // For frontend URL
+import { parse as parseDuration } from 'tinyduration'; // For parsing duration string like '7d'
+
+@Service()
+export class PropertyInvitationService {
+    @Inject(() => PrismaClient)
+    private prisma: PrismaClient;
+
+    @Inject(() => EmailService)
+    private emailService: EmailService;
+
+    @Inject(() => PropertyProfileService)
+    private propertyProfileService: PropertyProfileService;
+
+    constructor() {}
+
+    private calculateExpiry(durationString: string): Date {
+        try {
+            const duration = parseDuration(durationString);
+            let totalMilliseconds = 0;
+            if (duration.days) totalMilliseconds += duration.days * 24 * 60 * 60 * 1000;
+            if (duration.hours) totalMilliseconds += duration.hours * 60 * 60 * 1000;
+            if (duration.minutes) totalMilliseconds += duration.minutes * 60 * 1000;
+            if (duration.seconds) totalMilliseconds += duration.seconds * 1000;
+            return new Date(Date.now() + totalMilliseconds);
+        } catch (error) {
+            console.error('Error parsing duration string, defaulting to 7 days:', error);
+            return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days if parsing fails
+        }
+    }
+
+    async createInvitation(
+        createDto: CreatePropertyInvitationDto,
+        inviter: User, // The LinkCard user (admin) creating the invitation
+    ): Promise<PropertyInvitation> {
+        const { email, spaceId, linkspaceUserId } = createDto;
+
+        // 1. Generate a unique invitation token
+        const invitationToken = randomBytes(32).toString('hex');
+        const expiresAt = this.calculateExpiry(Config.propertyInvitation.tokenExpiresIn);
+
+        // 2. Store the invitation in the database
+        const invitation = await this.prisma.propertyInvitation.create({
+            data: {
+                email: email.toLowerCase(), // Store email in lowercase for consistency
+                spaceId,
+                linkspaceUserId: linkspaceUserId, // Store if provided
+                invitationToken,
+                expiresAt,
+                status: InvitationStatus.PENDING,
+                invitedByUserId: inviter.id,
+            },
+        });
+
+        // 3. Send an invitation email
+        // TODO: Refine the invitation URL and email template
+        const invitationLink = `${Config.frontendBaseUrl}${Config.propertyInvitation.acceptPath}?token=${invitationToken}`;
+
+        // Ensure inviter.display_name is not null or undefined, fallback to username
+        const inviterName = inviter.display_name || inviter.username;
+
+        await this.emailService.sendPropertyInvitationEmail({
+            to: email,
+            invitationLink,
+            invitedBy: inviterName,
+            spaceId, // You might want to resolve space name via LinkSpace API for better email content
+        });
+
+        return invitation;
+    }
+
+    async acceptInvitation(
+        invitationToken: string, // Changed from DTO to just token
+        linkCardUser: User, // The LinkCard user accepting the invitation
+    ): Promise<{ invitation: PropertyInvitation; profile: any }> {
+        // Return type updated
+        const invitation = await this.prisma.propertyInvitation.findUnique({
+            where: { invitationToken },
+        });
+
+        if (!invitation) {
+            throw new HttpError('Invitation not found.', 404, 'INVALID_INVITATION_TOKEN');
+        }
+
+        if (invitation.status !== InvitationStatus.PENDING) {
+            throw new HttpError('Invitation is no longer valid.', 400, 'INVITATION_NOT_PENDING');
+        }
+
+        if (invitation.expiresAt && invitation.expiresAt < new Date()) {
+            // Check if expiresAt is not null
+            await this.prisma.propertyInvitation.update({
+                where: { id: invitation.id },
+                data: { status: InvitationStatus.EXPIRED },
+            });
+            throw new HttpError('Invitation has expired.', 400, 'INVITATION_EXPIRED');
+        }
+
+        // Optional: Check if the email matches if the user is already logged in and email is set
+        if (invitation.email.toLowerCase() !== linkCardUser.email.toLowerCase()) {
+            throw new HttpError(
+                'This invitation is intended for a different email address.',
+                403,
+                'INVITATION_EMAIL_MISMATCH',
+            );
+        }
+
+        // Mark invitation as accepted and link the user
+        const updatedInvitation = await this.prisma.propertyInvitation.update({
+            where: { id: invitation.id },
+            data: {
+                status: InvitationStatus.ACCEPTED,
+                acceptedAt: new Date(),
+                acceptedByUserId: linkCardUser.id,
+                // If linkspaceUserId was in the invitation, it's already there.
+                // If not, and LinkSpace requires it, we might need another step or different flow.
+            },
+        });
+
+        // Create the property-specific profile for the LinkCard user
+        const profile = await this.propertyProfileService.createPropertyProfileForUser(
+            linkCardUser.id,
+            invitation.spaceId,
+            invitation.linkspaceUserId || undefined, // Pass undefined if null
+        );
+
+        return { invitation: updatedInvitation, profile };
+    }
+
+    async getInvitationByToken(invitationToken: string): Promise<PropertyInvitation | null> {
+        const invitation = await this.prisma.propertyInvitation.findUnique({
+            where: { invitationToken },
+        });
+
+        if (!invitation) {
+            return null;
+        }
+        // Potentially check for expiry or status if needed by the caller
+        return invitation;
+    }
+
+    async getPendingInvitationsForEmail(email: string): Promise<PropertyInvitation[]> {
+        return this.prisma.propertyInvitation.findMany({
+            where: {
+                email: email.toLowerCase(),
+                status: InvitationStatus.PENDING,
+                OR: [
+                    { expiresAt: null }, // Invitations that do not expire
+                    { expiresAt: { gte: new Date() } }, // Invitations that have not expired
+                ],
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                // Optionally include who invited them if needed on the frontend
+                // invitedByUser: { select: { id: true, username: true, display_name: true } },
+            },
+        });
+    }
+
+    async getInvitationsBySpace(spaceId: string): Promise<PropertyInvitation[]> {
+        return this.prisma.propertyInvitation.findMany({
+            where: { spaceId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                invitedByUser: { select: { id: true, username: true, display_name: true } },
+                acceptedByUser: { select: { id: true, username: true, display_name: true } },
+            },
+        });
+    }
+
+    async getInvitationsSentByUser(userId: string): Promise<PropertyInvitation[]> {
+        return this.prisma.propertyInvitation.findMany({
+            where: { invitedByUserId: userId },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                acceptedByUser: { select: { id: true, username: true, display_name: true } },
+            },
+        });
+    }
+}

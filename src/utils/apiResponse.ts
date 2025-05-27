@@ -48,11 +48,33 @@ export class ApiResponse {
 
     static validationError(
         res: Response,
+        details: any,
         message = 'Validation Error',
         code = 'VALIDATION_ERROR',
-        details?: unknown,
     ) {
-        return this.error(res, message, code, details, 422);
+        let responseMessage = message;
+        let errorDetails = details;
+
+        if (
+            Array.isArray(details) &&
+            details.length > 0 &&
+            details[0] &&
+            typeof details[0].constraints === 'object'
+        ) {
+            responseMessage = 'Input validation failed. Please check the details.';
+            errorDetails = details.map((err: any) => {
+                const firstConstraintMessage =
+                    err.constraints && Object.values(err.constraints).length > 0
+                        ? Object.values(err.constraints)[0]
+                        : 'Invalid value';
+                return {
+                    property: err.property,
+                    message: firstConstraintMessage as string,
+                };
+            });
+        }
+
+        return this.error(res, responseMessage, code, errorDetails, 422);
     }
 
     static serverError(
