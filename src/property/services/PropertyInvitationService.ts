@@ -1,6 +1,6 @@
 import { Service, Inject } from 'typedi';
 // PrismaClient is not needed here if using typeof prisma, but other types are
-import { PropertyInvitation, User, InvitationStatus } from '@prisma/client';
+import { PropertyInvitation, User, InvitationStatus, Prisma } from '@prisma/client';
 import prisma from '../../lib/prisma'; // Import the prisma instance
 import { randomBytes } from 'crypto';
 import {
@@ -46,7 +46,7 @@ export class PropertyInvitationService {
 
     async createInvitation(
         createDto: CreatePropertyInvitationDto,
-        inviter: User, // The LinkCard user (admin) creating the invitation
+        inviter: User | null, // Allow inviter to be User or null
     ): Promise<PropertyInvitation> {
         const { email, spaceId, linkspaceUserId } = createDto;
 
@@ -55,24 +55,33 @@ export class PropertyInvitationService {
         const expiresAt = this.calculateExpiry(Config.propertyInvitation.tokenExpiresIn);
 
         // 2. Store the invitation in the database
+        const dataToCreate: any = {
+            email: email.toLowerCase(),
+            spaceId,
+            linkspaceUserId: linkspaceUserId,
+            invitationToken,
+            expiresAt,
+            status: InvitationStatus.PENDING,
+        };
+
+        if (inviter) {
+            dataToCreate.invitedByUser = { connect: { id: inviter.id } };
+        } else {
+            // Explicitly set invitedByUserId to null if no inviter, assuming the field is nullable
+            dataToCreate.invitedByUserId = null;
+        }
+
         const invitation = await this.prisma.propertyInvitation.create({
-            data: {
-                email: email.toLowerCase(), // Store email in lowercase for consistency
-                spaceId,
-                linkspaceUserId: linkspaceUserId, // Store if provided
-                invitationToken,
-                expiresAt,
-                status: InvitationStatus.PENDING,
-                invitedByUserId: inviter.id,
-            },
+            data: dataToCreate as Prisma.PropertyInvitationCreateInput, // Used Prisma.PropertyInvitationCreateInput
         });
 
         // 3. Send an invitation email
-        // TODO: Refine the invitation URL and email template
         const invitationLink = `${Config.frontendBaseUrl}${Config.propertyInvitation.acceptPath}?token=${invitationToken}`;
 
-        // Ensure inviter.display_name is not null or undefined, fallback to username
-        const inviterName = inviter.display_name || inviter.username;
+        // Handle inviter name for email display
+        const inviterName = inviter
+            ? inviter.display_name || inviter.username
+            : 'The Management Team'; // Fallback name if inviter is null
 
         await this.emailService.sendPropertyInvitationEmail({
             to: email,
@@ -194,7 +203,7 @@ export class PropertyInvitationService {
 
     async createBulkInvitations(
         bulkCreateDto: CreateBulkPropertyInvitationsDto,
-        inviter: User,
+        inviter: User | null, // Allow inviter to be User or null
     ): Promise<{
         successfulInvitations: PropertyInvitation[];
         failedInvitations: { email: string; reason: string }[];

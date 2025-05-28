@@ -2,6 +2,7 @@ import { RequestHandler, Router } from 'express';
 import { Container } from 'typedi'; // Import Container
 import { PropertyInvitationController } from '../controllers/PropertyInvitationController';
 import { authMiddleware } from '../../middleware/auth.middleware'; // Path to your auth middleware
+import { adminApiKeyAuthMiddleware } from '../../middleware/adminApiKeyAuth.middleware'; // Import the new API Key middleware
 
 const router = Router();
 const invitationController = Container.get(PropertyInvitationController); // Corrected instantiation
@@ -13,17 +14,17 @@ const invitationController = Container.get(PropertyInvitationController); // Cor
  *   description: API endpoints for managing property invitations
  */
 
-// POST /api/property/invitations - Create a new invitation
+// POST /api/property/invitations - Create a new invitation (for Admin Portal)
 router.post(
     '/',
-    authMiddleware, // Protected route
+    adminApiKeyAuthMiddleware, // Use API Key Auth for Admin Portal
     invitationController.createInvitation as RequestHandler,
 );
 
-// POST /api/property/invitations/bulk - Create multiple invitations
+// POST /api/property/invitations/bulk - Create multiple invitations (for Admin Portal)
 router.post(
     '/bulk',
-    authMiddleware, // Protected route, consider adding role-based authorization
+    adminApiKeyAuthMiddleware, // Use API Key Auth for Admin Portal
     invitationController.createBulkInvitations as RequestHandler,
 );
 

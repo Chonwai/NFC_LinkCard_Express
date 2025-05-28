@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Service } from 'typedi';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -56,7 +56,7 @@ export class PropertyInvitationController {
      *       '500':
      *         $ref: '#/components/responses/InternalServerError'
      */
-    public createInvitation = async (req: AuthenticatedRequest, res: Response) => {
+    public createInvitation = async (req: Request, res: Response) => {
         try {
             const createDto = plainToClass(CreatePropertyInvitationDto, req.body);
             const errors = await validate(createDto);
@@ -64,12 +64,7 @@ export class PropertyInvitationController {
                 return ApiResponse.validationError(res, errors);
             }
 
-            if (!req.user) {
-                return ApiResponse.unauthorized(res, 'User not authenticated.');
-            }
-
-            const inviter = req.user as User;
-            const invitation = await this.invitationService.createInvitation(createDto, inviter);
+            const invitation = await this.invitationService.createInvitation(createDto, null);
             return ApiResponse.created(res, { invitation });
         } catch (error: unknown) {
             if (error instanceof HttpError) {
@@ -308,38 +303,18 @@ export class PropertyInvitationController {
      *       '500':
      *         $ref: '#/components/responses/InternalServerError'
      */
-    public createBulkInvitations = async (req: AuthenticatedRequest, res: Response) => {
+    public createBulkInvitations = async (req: Request, res: Response) => {
         try {
             const bulkCreateDto = plainToClass(CreateBulkPropertyInvitationsDto, req.body);
             const errors = await validate(bulkCreateDto);
             if (errors.length > 0) {
-                // Consider how to handle nested validation errors from the array
                 return ApiResponse.validationError(res, errors);
             }
 
-            if (!req.user) {
-                return ApiResponse.unauthorized(res, 'User not authenticated.');
-            }
+            const result = await this.invitationService.createBulkInvitations(bulkCreateDto, null);
 
-            // TODO: Add more robust authorization check here.
-            // For example, check if req.user has a specific role or permission
-            // to perform bulk invitations.
-            // e.g., if (req.user.role !== UserRole.ADMIN) {
-            // return ApiResponse.forbidden(res, 'You do not have permission to perform this action.');
-            // }
-
-            const inviter = req.user as User;
-            const result = await this.invitationService.createBulkInvitations(
-                bulkCreateDto,
-                inviter,
-            );
-
-            // Determine overall success. If all invitations failed, maybe return a different status code or success:false.
-            // For now, returning 200 with a mix of success/failure in the data.
             return ApiResponse.success(res, result);
         } catch (error: unknown) {
-            // This catch block might be too generic for bulk operations.
-            // The service layer now returns successes and failures, so this might only catch unexpected errors.
             if (error instanceof HttpError) {
                 return ApiResponse.error(
                     res,
