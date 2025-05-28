@@ -20,6 +20,13 @@ router.post(
     invitationController.createInvitation as RequestHandler,
 );
 
+// POST /api/property/invitations/bulk - Create multiple invitations
+router.post(
+    '/bulk',
+    authMiddleware, // Protected route, consider adding role-based authorization
+    invitationController.createBulkInvitations as RequestHandler,
+);
+
 // POST /api/property/invitations/accept - Accept an invitation
 router.post(
     '/accept',

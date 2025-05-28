@@ -1,4 +1,13 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail } from 'class-validator';
+import {
+    IsString,
+    IsNotEmpty,
+    IsOptional,
+    IsEmail,
+    IsArray,
+    ValidateNested,
+    ArrayMinSize,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePropertyInvitationDto {
     @IsEmail({}, { message: 'Please enter a valid email address for the invitee.' })
@@ -18,4 +27,12 @@ export class AcceptPropertyInvitationDto {
     @IsString()
     @IsNotEmpty({ message: 'Invitation token cannot be empty.' })
     invitationToken: string;
+}
+
+export class CreateBulkPropertyInvitationsDto {
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreatePropertyInvitationDto)
+    @ArrayMinSize(1, { message: 'Invitations array cannot be empty.' })
+    invitations: CreatePropertyInvitationDto[];
 }

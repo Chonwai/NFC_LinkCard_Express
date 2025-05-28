@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import {
     CreatePropertyInvitationDto,
     AcceptPropertyInvitationDto,
+    CreateBulkPropertyInvitationsDto,
 } from '../dtos/propertyInvitation.dto';
 import { EmailService } from '../../services/EmailService'; // Assuming core EmailService path
 import { PropertyProfileService } from './PropertyProfileService';
@@ -189,5 +190,49 @@ export class PropertyInvitationService {
                 acceptedUser: { select: { id: true, username: true, display_name: true } },
             },
         });
+    }
+
+    async createBulkInvitations(
+        bulkCreateDto: CreateBulkPropertyInvitationsDto,
+        inviter: User,
+    ): Promise<{
+        successfulInvitations: PropertyInvitation[];
+        failedInvitations: { email: string; reason: string }[];
+    }> {
+        const successfulInvitations: PropertyInvitation[] = [];
+        const failedInvitations: { email: string; reason: string }[] = [];
+
+        for (const invitationDto of bulkCreateDto.invitations) {
+            try {
+                // Optional: Add a check here to see if an active PENDING invitation already exists for this email and spaceId
+                // to prevent duplicate invitations if desired.
+                // const existingInvitation = await this.prisma.propertyInvitation.findFirst({
+                // where: {
+                // email: invitationDto.email.toLowerCase(),
+                // spaceId: invitationDto.spaceId,
+                // status: InvitationStatus.PENDING,
+                // OR: [
+                // { expiresAt: null },
+                // { expiresAt: { gte: new Date() } },
+                // ],
+                // }
+                // });
+                // if (existingInvitation) {
+                // failedInvitations.push({ email: invitationDto.email, reason: 'An active pending invitation already exists for this email and space.' });
+                // continue;
+                // }
+
+                const invitation = await this.createInvitation(invitationDto, inviter);
+                successfulInvitations.push(invitation);
+            } catch (error: any) {
+                console.error(`Failed to create invitation for ${invitationDto.email}:`, error);
+                failedInvitations.push({
+                    email: invitationDto.email,
+                    reason: error.message || 'Unknown error',
+                });
+            }
+        }
+
+        return { successfulInvitations, failedInvitations };
     }
 }
