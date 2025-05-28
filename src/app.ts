@@ -5,8 +5,7 @@ import routes from './routes';
 import profileRoutes from './routes/profiles';
 import linkRoutes from './routes/links';
 import associationRoutes from './association/routes';
-import propertyRoutes from './property/routes';
-import { specs, swaggerUi } from './swagger';
+import propertyRoutes from './property/routes/index';
 
 const app = express();
 
@@ -60,9 +59,6 @@ app.use('/api/links', linkRoutes);
 app.use('/api', routes);
 app.use('/api/association', associationRoutes);
 app.use('/api/property', propertyRoutes);
-
-// Swagger 文檔路由
-app.use('/api-docs', swaggerUi.serve as any, swaggerUi.setup(specs) as any);
 
 app.listen(3020, () => {
     console.log('Server is running on port 3020');

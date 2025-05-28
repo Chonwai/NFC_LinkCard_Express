@@ -1,5 +1,7 @@
 import { Service, Inject } from 'typedi';
-import { PrismaClient, PropertyInvitation, User, InvitationStatus } from '@prisma/client';
+// PrismaClient is not needed here if using typeof prisma, but other types are
+import { PropertyInvitation, User, InvitationStatus } from '@prisma/client';
+import prisma from '../../lib/prisma'; // Import the prisma instance
 import { randomBytes } from 'crypto';
 import {
     CreatePropertyInvitationDto,
@@ -13,8 +15,8 @@ import { parse as parseDuration } from 'tinyduration'; // For parsing duration s
 
 @Service()
 export class PropertyInvitationService {
-    @Inject(() => PrismaClient)
-    private prisma: PrismaClient;
+    // @Inject(() => PrismaClient) // Removed Inject
+    private prisma: typeof prisma; // Use the actual type of the imported prisma instance
 
     @Inject(() => EmailService)
     private emailService: EmailService;
@@ -22,7 +24,9 @@ export class PropertyInvitationService {
     @Inject(() => PropertyProfileService)
     private propertyProfileService: PropertyProfileService;
 
-    constructor() {}
+    constructor() {
+        this.prisma = prisma; // Assign imported instance
+    }
 
     private calculateExpiry(durationString: string): Date {
         try {

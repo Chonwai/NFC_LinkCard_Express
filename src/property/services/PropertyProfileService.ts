@@ -1,14 +1,16 @@
-import { Service, Inject } from 'typedi';
-import { PrismaClient, Profile, User } from '@prisma/client';
+import { Service } from 'typedi';
+import { Profile, User } from '@prisma/client'; // PrismaClient itself is not needed if using typeof prisma
+import prisma from '../../lib/prisma'; // Import the prisma instance
 import { HttpError } from '../../utils/HttpError';
 import { generateProfileSlug } from '../../utils/slug.util'; // Assuming a slug utility exists
 
 @Service()
 export class PropertyProfileService {
-    @Inject(() => PrismaClient)
-    private prisma: PrismaClient;
+    private prisma: typeof prisma; // Use the actual type of the imported prisma instance
 
-    constructor() {}
+    constructor() {
+        this.prisma = prisma; // Assign imported instance
+    }
 
     async createPropertyProfileForUser(
         linkCardUserId: string,

@@ -5,7 +5,7 @@ import { PrismaClient } from '@prisma/client';
 // we might need to use require if it's an older version or if the project isn't configured for ESM imports from node_modules.
 // However, typical modern TypeScript setups with `moduleResolution: "node"` should handle `import { customAlphabet } from 'nanoid';` fine if nanoid is listed in dependencies.
 // Let's assume a compatible version of nanoid is installed that works with this import style.
-import { customAlphabet } from 'nanoid';
+// import { customAlphabet } from 'nanoid'; // Removed static import
 
 const prisma = new PrismaClient(); // TODO: Consider injecting PrismaClient for better testability
 
@@ -38,13 +38,18 @@ export async function generateProfileSlug(name: string, _userId?: string): Promi
             return finalSlug;
         }
         // If slug exists, append a short random string
+        const { customAlphabet } = await import('nanoid'); // Dynamic import
         const generateNanoId = customAlphabet('1234567890abcdef', 6);
         finalSlug = `${baseSlug}-${generateNanoId()}`;
         attempts++;
     }
 
     // Fallback to a more random slug if attempts fail
-    const generateNanoIdFallback = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyz', 10);
+    const { customAlphabet: customAlphabetFallback } = await import('nanoid'); // Dynamic import for fallback
+    const generateNanoIdFallback = customAlphabetFallback(
+        '1234567890abcdefghijklmnopqrstuvwxyz',
+        10,
+    );
     return `${baseSlug}-${generateNanoIdFallback()}`;
 }
 
