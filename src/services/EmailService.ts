@@ -214,27 +214,4 @@ export class EmailService {
             templateData,
         );
     }
-
-    async sendPropertyInvitationEmail(data: {
-        to: string;
-        invitationLink: string;
-        invitedBy: string;
-        spaceId: string;
-        // Add any other necessary parameters for the email template
-    }): Promise<void> {
-        const { to, invitationLink, invitedBy, spaceId } = data;
-
-        const templateData = {
-            invitationLink,
-            invitedBy,
-            spaceName: spaceId, // You might want to pass a more user-friendly name
-            // Add other data needed for the property invitation email template
-        };
-
-        // Define a specific template for property invitations
-        const templateName = 'property-invitation.ejs'; // Make sure this template exists
-        const subject = `您有一個來自 ${invitedBy} 的物業邀請`;
-
-        return this.sendTemplateEmail(to, subject, templateName, templateData);
-    }
 }

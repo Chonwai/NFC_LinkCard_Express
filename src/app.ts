@@ -5,7 +5,6 @@ import routes from './routes';
 import profileRoutes from './routes/profiles';
 import linkRoutes from './routes/links';
 import associationRoutes from './association/routes';
-import propertyRoutes from './property/routes/index';
 
 const app = express();
 
@@ -58,7 +57,6 @@ app.use('/api/profiles', profileRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api', routes);
 app.use('/api/association', associationRoutes);
-app.use('/api/property', propertyRoutes);
 
 app.listen(3020, () => {
     console.log('Server is running on port 3020');

@@ -23,14 +23,6 @@ export const Config = {
     // Frontend URL (crucial for generating correct links in emails)
     frontendBaseUrl: process.env.FRONTEND_BASE_URL || 'http://localhost:3000',
 
-    // Property Invitation specific configurations
-    propertyInvitation: {
-        // How long an invitation token is valid for (e.g., '7d' for 7 days, '24h' for 24 hours, '30m' for 30 minutes)
-        tokenExpiresIn: process.env.PROPERTY_INVITATION_TOKEN_EXPIRES_IN || '7d',
-        // URL path on the frontend to handle invitation acceptance
-        acceptPath: process.env.PROPERTY_INVITATION_ACCEPT_PATH || '/accept-property-invitation',
-    },
-
     // Database URL (Prisma typically reads this from .env directly, but good to have a central reference point)
     databaseUrl: process.env.DATABASE_URL,
 
