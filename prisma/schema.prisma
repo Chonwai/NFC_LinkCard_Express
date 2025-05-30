@@ -17,54 +17,50 @@ datasource db {
 }
 
 model User {
-  id                      String               @id @default(uuid())
-  username                String               @unique
-  email                   String               @unique
-  password                String
-  display_name            String?              @map("display_name")
-  avatar                  String?
-  bio                     String?
-  is_verified             Boolean              @default(false) @map("is_verified")
-  verified_at             DateTime?            @map("verified_at")
-  verification_token      String?              @map("verification_token")
-  reset_password_token    String?              @map("reset_password_token")
-  reset_password_expires  DateTime?            @map("reset_password_expires")
-  meta                    Json?                @default("{}")
-  created_at              DateTime             @default(now()) @map("created_at")
-  updated_at              DateTime             @updatedAt @map("updated_at")
-  links                   Link[]
-  profiles                Profile[]
-  analytics               Analytics[]
-  association             Association?
-  memberOf                AssociationMember[]
-  propertyInvitations     PropertyInvitation[] @relation("UserAcceptedInvitations") // Renamed to match PropertyInvitation's relation name
-  sentPropertyInvitations PropertyInvitation[] @relation("UserSentInvitations") // Renamed to match PropertyInvitation's relation name
+  id                     String              @id @default(uuid())
+  username               String              @unique
+  email                  String              @unique
+  password               String
+  display_name           String?             @map("display_name")
+  avatar                 String?
+  bio                    String?
+  is_verified            Boolean             @default(false) @map("is_verified")
+  verified_at            DateTime?           @map("verified_at")
+  verification_token     String?             @map("verification_token")
+  reset_password_token   String?             @map("reset_password_token")
+  reset_password_expires DateTime?           @map("reset_password_expires")
+  meta                   Json?               @default("{}")
+  created_at             DateTime            @default(now()) @map("created_at")
+  updated_at             DateTime            @updatedAt @map("updated_at")
+  links                  Link[]
+  profiles               Profile[]
+  analytics              Analytics[]
+  association            Association?
+  memberOf               AssociationMember[]
 
   @@map("users")
 }
 
 model Profile {
-  id                   String         @id @default(uuid())
-  name                 String
-  slug                 String         @unique
-  user_id              String         @map("user_id")
-  user                 User           @relation(fields: [user_id], references: [id])
-  links                Link[]
-  custom_domain        String?        @map("custom_domain")
-  is_public            Boolean        @default(true) @map("is_public")
-  is_default           Boolean        @default(false) @map("is_default")
-  description          String?
-  profile_image        String?        @map("profile_image")
-  created_at           DateTime       @default(now()) @map("created_at")
-  updated_at           DateTime       @updatedAt @map("updated_at")
-  meta                 Json?          @default("{}")
-  appearance           Json?          @default("{}")
-  enable_lead_capture  Boolean        @default(false) @map("enable_lead_capture")
-  lead_capture_fields  Json?          @map("lead_capture_fields")
-  leads                Lead[]
-  badges               ProfileBadge[] // 添加徽章關聯
-  profileType          String         @default("DEFAULT") // Added for property MVP
-  linkspaceAffiliation Json? // Added for property MVP, stores { spaceId, linkspaceUserId, ... }
+  id                  String         @id @default(uuid())
+  name                String
+  slug                String         @unique
+  user_id             String         @map("user_id")
+  user                User           @relation(fields: [user_id], references: [id])
+  links               Link[]
+  custom_domain       String?        @map("custom_domain")
+  is_public           Boolean        @default(true) @map("is_public")
+  is_default          Boolean        @default(false) @map("is_default")
+  description         String?
+  profile_image       String?        @map("profile_image")
+  created_at          DateTime       @default(now()) @map("created_at")
+  updated_at          DateTime       @updatedAt @map("updated_at")
+  meta                Json?          @default("{}")
+  appearance          Json?          @default("{}")
+  enable_lead_capture Boolean        @default(false) @map("enable_lead_capture")
+  lead_capture_fields Json?          @map("lead_capture_fields")
+  leads               Lead[]
+  badges              ProfileBadge[] // 添加徽章關聯
 
   @@index([user_id])
   @@map("profiles")
@@ -327,35 +323,4 @@ model MembershipHistory {
 
   @@index([association_member_id])
   @@map("membership_history")
-}
-
-// New model for Property Invitations
-model PropertyInvitation {
-  id               String           @id @default(uuid())
-  email            String
-  spaceId          String // Represents the LinkSpace space ID
-  linkspaceUserId  String? // Optional: User ID from LinkSpace system, if provided by inviter
-  invitationToken  String           @unique
-  status           InvitationStatus @default(PENDING) // PENDING, ACCEPTED, EXPIRED
-  expiresAt        DateTime
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  acceptedAt       DateTime?
-  acceptedByUserId String? // LinkCard User ID who accepted
-  acceptedByUser   User?            @relation("UserAcceptedInvitations", fields: [acceptedByUserId], references: [id])
-
-  invitedByUserId String? // LinkCard User ID who initiated the invitation (Optional)
-  invitedByUser   User?   @relation("UserSentInvitations", fields: [invitedByUserId], references: [id]) // Relation to the User who invited (Optional)
-
-  @@index([email])
-  @@index([invitationToken])
-  @@index([spaceId])
-  @@map("property_invitations")
-}
-
-// New enum for Invitation Status
-enum InvitationStatus {
-  PENDING
-  ACCEPTED
-  EXPIRED
 }
