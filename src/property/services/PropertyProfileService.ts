@@ -16,6 +16,7 @@ export class PropertyProfileService {
         linkCardUserId: string,
         spaceId: string,
         linkspaceVerificationId: string,
+        linkspaceUserId?: string, // Added optional linkspaceUserId from invitation
     ): Promise<Profile> {
         // Check if user exists
         const user = await this.prisma.user.findUnique({
@@ -48,6 +49,7 @@ export class PropertyProfileService {
                 meta: {
                     propertySpaceId: spaceId,
                     linkspaceVerificationId: linkspaceVerificationId,
+                    linkspaceUserId: linkspaceUserId, // Store it here
                     profileType: 'PROPERTY_MANAGEMENT', // Custom type to distinguish this profile
                 },
                 appearance: {

@@ -17,28 +17,28 @@ datasource db {
 }
 
 model User {
-  id                     String               @id @default(uuid())
-  username               String               @unique
-  email                  String               @unique
-  password               String
-  display_name           String?              @map("display_name")
-  avatar                 String?
-  bio                    String?
-  is_verified            Boolean              @default(false) @map("is_verified")
-  verified_at            DateTime?            @map("verified_at")
-  verification_token     String?              @map("verification_token")
-  reset_password_token   String?              @map("reset_password_token")
-  reset_password_expires DateTime?            @map("reset_password_expires")
-  meta                   Json?                @default("{}")
-  created_at             DateTime             @default(now()) @map("created_at")
-  updated_at             DateTime             @updatedAt @map("updated_at")
-  links                  Link[]
-  profiles               Profile[]
-  analytics              Analytics[]
-  association            Association?
-  memberOf               AssociationMember[]
-  propertyInvitations    PropertyInvitation[] @relation("AcceptedInvitations") // 已接受的邀請
-  sentPropertyInvitations PropertyInvitation[] @relation("SentInvitations")     // 已發送的邀請
+  id                      String               @id @default(uuid())
+  username                String               @unique
+  email                   String               @unique
+  password                String
+  display_name            String?              @map("display_name")
+  avatar                  String?
+  bio                     String?
+  is_verified             Boolean              @default(false) @map("is_verified")
+  verified_at             DateTime?            @map("verified_at")
+  verification_token      String?              @map("verification_token")
+  reset_password_token    String?              @map("reset_password_token")
+  reset_password_expires  DateTime?            @map("reset_password_expires")
+  meta                    Json?                @default("{}")
+  created_at              DateTime             @default(now()) @map("created_at")
+  updated_at              DateTime             @updatedAt @map("updated_at")
+  links                   Link[]
+  profiles                Profile[]
+  analytics               Analytics[]
+  association             Association?
+  memberOf                AssociationMember[]
+  propertyInvitations     PropertyInvitation[] @relation("UserAcceptedInvitations") // Renamed to match PropertyInvitation's relation name
+  sentPropertyInvitations PropertyInvitation[] @relation("UserSentInvitations") // Renamed to match PropertyInvitation's relation name
 
   @@map("users")
 }
@@ -331,27 +331,25 @@ model MembershipHistory {
 
 // New model for Property Invitations
 model PropertyInvitation {
-  id               String           @id @default(cuid())
-  email            String // 被邀請者的郵箱
-  spaceId          String // 邀請他們加入的 LinkSpace Space ID
-  linkspaceUserId  String? // (可選) 被邀請者在 LinkSpace 系統中的預設用戶ID
-  invitationToken  String           @unique // 發送給用戶的唯一邀請令牌
+  id               String           @id @default(uuid())
+  email            String
+  spaceId          String // Represents the LinkSpace space ID
+  linkspaceUserId  String? // Optional: User ID from LinkSpace system, if provided by inviter
+  invitationToken  String           @unique
   status           InvitationStatus @default(PENDING) // PENDING, ACCEPTED, EXPIRED
-  expiresAt        DateTime? // 令牌過期時間
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-  
-  acceptedByUserId String?          // 接受邀請的 LinkCard User ID
-  acceptedUser     User?            @relation("AcceptedInvitations", fields: [acceptedByUserId], references: [id])
-  
-  invitedByUserId  String           // 發起邀請的 LinkCard User ID
-  invitedByUser    User             @relation("SentInvitations", fields: [invitedByUserId], references: [id])
-  
-  acceptedAt       DateTime?        // 邀請被接受的時間
+  expiresAt        DateTime
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  acceptedAt       DateTime?
+  acceptedByUserId String? // LinkCard User ID who accepted
+  acceptedByUser   User?            @relation("UserAcceptedInvitations", fields: [acceptedByUserId], references: [id])
+
+  invitedByUserId String? // LinkCard User ID who initiated the invitation (Optional)
+  invitedByUser   User?   @relation("UserSentInvitations", fields: [invitedByUserId], references: [id]) // Relation to the User who invited (Optional)
 
   @@index([email])
+  @@index([invitationToken])
   @@index([spaceId])
-  @@index([invitedByUserId])
   @@map("property_invitations")
 }
 

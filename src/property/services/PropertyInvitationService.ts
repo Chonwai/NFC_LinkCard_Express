@@ -12,7 +12,6 @@ import { EmailService } from '../../services/EmailService'; // Assuming core Ema
 import { PropertyProfileService } from './PropertyProfileService';
 import { HttpError } from '../../utils/HttpError';
 import { Config } from '../../config'; // For frontend URL
-import { parse as parseDuration } from 'tinyduration'; // For parsing duration string like '7d'
 
 @Service()
 export class PropertyInvitationService {
@@ -30,88 +29,85 @@ export class PropertyInvitationService {
     }
 
     private calculateExpiry(durationString: string): Date {
-        try {
-            const duration = parseDuration(durationString);
-            let totalMilliseconds = 0;
-            if (duration.days) totalMilliseconds += duration.days * 24 * 60 * 60 * 1000;
-            if (duration.hours) totalMilliseconds += duration.hours * 60 * 60 * 1000;
-            if (duration.minutes) totalMilliseconds += duration.minutes * 60 * 1000;
-            if (duration.seconds) totalMilliseconds += duration.seconds * 1000;
-            return new Date(Date.now() + totalMilliseconds);
-        } catch (error) {
-            console.error('Error parsing duration string, defaulting to 7 days:', error);
-            return new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days if parsing fails
+        const now = new Date();
+        const value = parseInt(durationString.slice(0, -1));
+        const unit = durationString.slice(-1).toLowerCase();
+
+        if (isNaN(value)) {
+            console.error('Invalid duration value, defaulting to 7 days:', durationString);
+            return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days
+        }
+
+        switch (unit) {
+            case 'd':
+                return new Date(now.getTime() + value * 24 * 60 * 60 * 1000);
+            case 'h':
+                return new Date(now.getTime() + value * 60 * 60 * 1000);
+            case 'm':
+                return new Date(now.getTime() + value * 60 * 1000);
+            default:
+                console.error('Invalid duration unit, defaulting to 7 days:', durationString);
+                return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Default to 7 days
         }
     }
 
     async createInvitation(
         createDto: CreatePropertyInvitationDto,
-        inviter: User | null, // Allow inviter to be User or null
+        inviter: User | null,
     ): Promise<PropertyInvitation> {
         const { email, spaceId, linkspaceUserId } = createDto;
-
-        // 1. Generate a unique invitation token
         const invitationToken = randomBytes(32).toString('hex');
         const expiresAt = this.calculateExpiry(Config.propertyInvitation.tokenExpiresIn);
 
-        // 2. Store the invitation in the database
-        const dataToCreate: any = {
+        const data: Prisma.PropertyInvitationUncheckedCreateInput = {
             email: email.toLowerCase(),
             spaceId,
             linkspaceUserId: linkspaceUserId,
             invitationToken,
             expiresAt,
             status: InvitationStatus.PENDING,
+            invitedByUserId: inviter ? inviter.id : null,
         };
 
-        if (inviter) {
-            dataToCreate.invitedByUser = { connect: { id: inviter.id } };
-        } else {
-            // Explicitly set invitedByUserId to null if no inviter, assuming the field is nullable
-            dataToCreate.invitedByUserId = null;
-        }
-
         const invitation = await this.prisma.propertyInvitation.create({
-            data: dataToCreate as Prisma.PropertyInvitationCreateInput, // Used Prisma.PropertyInvitationCreateInput
+            data,
         });
 
-        // 3. Send an invitation email
         const invitationLink = `${Config.frontendBaseUrl}${Config.propertyInvitation.acceptPath}?token=${invitationToken}`;
-
-        // Handle inviter name for email display
         const inviterName = inviter
             ? inviter.display_name || inviter.username
-            : 'The Management Team'; // Fallback name if inviter is null
+            : 'The Management Team';
 
         await this.emailService.sendPropertyInvitationEmail({
             to: email,
             invitationLink,
             invitedBy: inviterName,
-            spaceId, // You might want to resolve space name via LinkSpace API for better email content
+            spaceId,
         });
 
         return invitation;
     }
 
     async acceptInvitation(
-        invitationToken: string, // Changed from DTO to just token
-        linkCardUser: User, // The LinkCard user accepting the invitation
+        invitationToken: string,
+        acceptingUser: User,
     ): Promise<{ invitation: PropertyInvitation; profile: any }> {
-        // Return type updated
+        // Consider a specific type for profile
         const invitation = await this.prisma.propertyInvitation.findUnique({
             where: { invitationToken },
         });
 
         if (!invitation) {
-            throw new HttpError(404, 'Invitation not found.', 'INVALID_INVITATION_TOKEN');
+            throw new HttpError(404, 'Invitation not found.', 'INVITATION_NOT_FOUND');
         }
-
         if (invitation.status !== InvitationStatus.PENDING) {
-            throw new HttpError(400, 'Invitation is no longer valid.', 'INVITATION_NOT_PENDING');
+            throw new HttpError(
+                400,
+                'Invitation is no longer valid or has already been accepted.',
+                'INVITATION_NOT_PENDING',
+            );
         }
-
-        if (invitation.expiresAt && invitation.expiresAt < new Date()) {
-            // Check if expiresAt is not null
+        if (invitation.expiresAt < new Date()) {
             await this.prisma.propertyInvitation.update({
                 where: { id: invitation.id },
                 data: { status: InvitationStatus.EXPIRED },
@@ -119,47 +115,31 @@ export class PropertyInvitationService {
             throw new HttpError(400, 'Invitation has expired.', 'INVITATION_EXPIRED');
         }
 
-        // Optional: Check if the email matches if the user is already logged in and email is set
-        if (invitation.email.toLowerCase() !== linkCardUser.email.toLowerCase()) {
-            throw new HttpError(
-                403,
-                'This invitation is intended for a different email address.',
-                'INVITATION_EMAIL_MISMATCH',
-            );
-        }
+        const linkspaceVerificationId = `LS_VERIFY_${randomBytes(8).toString('hex').toUpperCase()}`;
 
-        // Mark invitation as accepted and link the user
+        const profile = await this.propertyProfileService.createPropertyProfileForUser(
+            acceptingUser.id,
+            invitation.spaceId,
+            linkspaceVerificationId,
+            invitation.linkspaceUserId,
+        );
+
         const updatedInvitation = await this.prisma.propertyInvitation.update({
             where: { id: invitation.id },
             data: {
                 status: InvitationStatus.ACCEPTED,
                 acceptedAt: new Date(),
-                acceptedByUserId: linkCardUser.id,
-                // If linkspaceUserId was in the invitation, it's already there.
-                // If not, and LinkSpace requires it, we might need another step or different flow.
+                acceptedByUserId: acceptingUser.id,
             },
         });
-
-        // Create the property-specific profile for the LinkCard user
-        const profile = await this.propertyProfileService.createPropertyProfileForUser(
-            linkCardUser.id,
-            invitation.spaceId,
-            invitation.linkspaceUserId || '', // Pass empty string if null
-        );
 
         return { invitation: updatedInvitation, profile };
     }
 
     async getInvitationByToken(invitationToken: string): Promise<PropertyInvitation | null> {
-        const invitation = await this.prisma.propertyInvitation.findUnique({
+        return this.prisma.propertyInvitation.findUnique({
             where: { invitationToken },
         });
-
-        if (!invitation) {
-            return null;
-        }
-        // Potentially check for expiry or status if needed by the caller
-        return invitation;
     }
 
     async getPendingInvitationsForEmail(email: string): Promise<PropertyInvitation[]> {
@@ -167,16 +147,9 @@ export class PropertyInvitationService {
             where: {
                 email: email.toLowerCase(),
                 status: InvitationStatus.PENDING,
-                OR: [
-                    { expiresAt: null }, // Invitations that do not expire
-                    { expiresAt: { gte: new Date() } }, // Invitations that have not expired
-                ],
+                expiresAt: { gt: new Date() },
             },
             orderBy: { createdAt: 'desc' },
-            include: {
-                // Optionally include who invited them if needed on the frontend
-                // invitedByUser: { select: { id: true, username: true, display_name: true } },
-            },
         });
     }
 
@@ -203,7 +176,7 @@ export class PropertyInvitationService {
 
     async createBulkInvitations(
         bulkCreateDto: CreateBulkPropertyInvitationsDto,
-        inviter: User | null, // Allow inviter to be User or null
+        inviter: User | null,
     ): Promise<{
         successfulInvitations: PropertyInvitation[];
         failedInvitations: { email: string; reason: string }[];
@@ -213,35 +186,15 @@ export class PropertyInvitationService {
 
         for (const invitationDto of bulkCreateDto.invitations) {
             try {
-                // Optional: Add a check here to see if an active PENDING invitation already exists for this email and spaceId
-                // to prevent duplicate invitations if desired.
-                // const existingInvitation = await this.prisma.propertyInvitation.findFirst({
-                // where: {
-                // email: invitationDto.email.toLowerCase(),
-                // spaceId: invitationDto.spaceId,
-                // status: InvitationStatus.PENDING,
-                // OR: [
-                // { expiresAt: null },
-                // { expiresAt: { gte: new Date() } },
-                // ],
-                // }
-                // });
-                // if (existingInvitation) {
-                // failedInvitations.push({ email: invitationDto.email, reason: 'An active pending invitation already exists for this email and space.' });
-                // continue;
-                // }
-
                 const invitation = await this.createInvitation(invitationDto, inviter);
                 successfulInvitations.push(invitation);
             } catch (error: any) {
-                console.error(`Failed to create invitation for ${invitationDto.email}:`, error);
                 failedInvitations.push({
                     email: invitationDto.email,
-                    reason: error.message || 'Unknown error',
+                    reason: error.message || 'Failed to create invitation.',
                 });
             }
         }
-
         return { successfulInvitations, failedInvitations };
     }
 }

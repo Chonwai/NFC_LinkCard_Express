@@ -25,8 +25,8 @@ export const Config = {
 
     // Property Invitation specific configurations
     propertyInvitation: {
-        // How long an invitation token is valid for (e.g., 'P7D' for 7 days, 'PT24H' for 24 hours)
-        tokenExpiresIn: process.env.PROPERTY_INVITATION_TOKEN_EXPIRES_IN || 'P7D',
+        // How long an invitation token is valid for (e.g., '7d' for 7 days, '24h' for 24 hours, '30m' for 30 minutes)
+        tokenExpiresIn: process.env.PROPERTY_INVITATION_TOKEN_EXPIRES_IN || '7d',
         // URL path on the frontend to handle invitation acceptance
         acceptPath: process.env.PROPERTY_INVITATION_ACCEPT_PATH || '/accept-property-invitation',
     },
