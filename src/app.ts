@@ -5,6 +5,8 @@ import routes from './routes';
 import profileRoutes from './routes/profiles';
 import linkRoutes from './routes/links';
 import associationRoutes from './association/routes';
+import paymentRoutes from './payment/routes';
+import { stripeWebhookMiddleware } from './payment/middleware/webhook.middleware';
 
 const app = express();
 
@@ -50,6 +52,10 @@ app.use(
         maxAge: 86400,
     }),
 );
+
+// Stripe Webhook 中間件必須在 JSON 解析之前
+app.use(stripeWebhookMiddleware);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
@@ -57,6 +63,7 @@ app.use('/api/profiles', profileRoutes);
 app.use('/api/links', linkRoutes);
 app.use('/api', routes);
 app.use('/api/association', associationRoutes);
+app.use('/api/payment', paymentRoutes);
 
 app.listen(3020, () => {
     console.log('Server is running on port 3020');

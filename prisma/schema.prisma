@@ -37,6 +37,7 @@ model User {
   analytics              Analytics[]
   association            Association?
   memberOf               AssociationMember[]
+  purchaseOrders         PurchaseOrder[]     // 新增：用戶的購買訂單
 
   @@map("users")
 }
@@ -194,6 +195,8 @@ model Association {
   leads     AssociationLead[]
   analytics AssociationAnalytics[]
   badges    ProfileBadge[] // 添加徽章關聯
+  pricingPlans PricingPlan[]        // 新增：協會的定價方案
+  purchaseOrders PurchaseOrder[]    // 新增：協會的購買訂單
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -323,4 +326,78 @@ model MembershipHistory {
 
   @@index([association_member_id])
   @@map("membership_history")
+}
+
+// MVP 付費功能：定價方案
+model PricingPlan {
+  id                   String              @id @default(uuid())
+  associationId        String              @map("association_id")
+  association          Association         @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  
+  // 方案基本信息
+  name                 String              // 方案名稱 (如 "BASIC", "PREMIUM", "EXECUTIVE")
+  displayName          String              @map("display_name") // 顯示名稱 (如 "基礎會員", "高級會員", "執行會員")
+  description          String?             // 方案描述
+  membershipTier       MembershipTier      @map("membership_tier") // 對應的會員等級
+  
+  // 價格設定
+  price                Decimal             @db.Decimal(10, 2) // 價格
+  currency             String              @default("HKD") // 貨幣
+  billingCycle         String              @default("YEARLY") // 計費週期: MONTHLY, YEARLY
+  
+  // Stripe 集成
+  stripeProductId      String?             @map("stripe_product_id") // Stripe Product ID
+  stripePriceId        String?             @map("stripe_price_id") // Stripe Price ID
+  
+  // 狀態
+  isActive             Boolean             @default(true) @map("is_active")
+  
+  // 系統字段
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  
+  // 關聯
+  purchaseOrders       PurchaseOrder[]
+
+  @@unique([associationId, membershipTier])
+  @@index([associationId])
+  @@index([isActive])
+  @@map("pricing_plans")
+}
+
+// MVP 付費功能：購買訂單
+model PurchaseOrder {
+  id                   String              @id @default(uuid())
+  
+  // 關聯
+  associationId        String              @map("association_id")
+  association          Association         @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  userId               String              @map("user_id")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pricingPlanId        String              @map("pricing_plan_id")
+  pricingPlan          PricingPlan         @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
+  
+  // 訂單信息
+  orderNumber          String              @unique @map("order_number") // 訂單號
+  amount               Decimal             @db.Decimal(10, 2) // 金額
+  currency             String              @default("HKD") // 貨幣
+  status               String              @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  
+  // Stripe 集成數據 (使用 JSON 存儲以保持靈活性)
+  stripeData           Json?               @map("stripe_data") // 存儲 Stripe 相關數據
+  
+  // 會員權益生效期間
+  membershipStartDate  DateTime?           @map("membership_start_date")
+  membershipEndDate    DateTime?           @map("membership_end_date")
+  
+  // 系統字段
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  paidAt               DateTime?           @map("paid_at") // 支付完成時間
+
+  @@index([associationId])
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@map("purchase_orders")
 }
