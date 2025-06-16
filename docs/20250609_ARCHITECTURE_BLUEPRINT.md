@@ -1,4 +1,4 @@
-# LinkCard 系統架構設計文檔（藍圖）
+# LinkCard 系統架構設計文檔（藍圖）（File Name: 20250609_ARCHITECTURE_BLUEPRINT.md）
 
 ## 目錄
 - [系統概述](#系統概述)

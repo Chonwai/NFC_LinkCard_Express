@@ -1,4 +1,4 @@
-# 多支付平台架構重構方案
+# 多支付平台架構重構方案（File Name: 20250616_MULTI_PROVIDER_ARCHITECTURE.md）
 
 ## 🔍 現狀分析
 
