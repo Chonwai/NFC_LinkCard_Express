@@ -14,6 +14,8 @@ const pricingPlanController = Container.get(PricingPlanController);
  *       - Pricing Plans
  *     summary: 獲取協會的定價方案列表
  *     description: 獲取指定協會的所有定價方案
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: associationId
@@ -39,12 +41,20 @@ const pricingPlanController = Container.get(PricingPlanController);
  *                       type: array
  *                       items:
  *                         $ref: '#/components/schemas/PricingPlan'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
  *       404:
  *         description: 協會不存在
  *       500:
  *         description: 服務器錯誤
  */
-router.get('/association/:associationId', pricingPlanController.getAssociationPricingPlans);
+router.get(
+    '/association/:associationId',
+    authMiddleware,
+    pricingPlanController.getAssociationPricingPlans,
+);
 
 /**
  * @openapi
@@ -54,6 +64,8 @@ router.get('/association/:associationId', pricingPlanController.getAssociationPr
  *       - Pricing Plans
  *     summary: 根據 ID 獲取定價方案
  *     description: 獲取指定 ID 的定價方案詳情
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -77,26 +89,34 @@ router.get('/association/:associationId', pricingPlanController.getAssociationPr
  *                   properties:
  *                     plan:
  *                       $ref: '#/components/schemas/PricingPlan'
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
  *       404:
  *         description: 定價方案不存在
  *       500:
  *         description: 服務器錯誤
  */
-router.get('/:id', pricingPlanController.getPricingPlanById);
-
-// 需要認證的路由
-router.use(authMiddleware);
+router.get('/:id', authMiddleware, pricingPlanController.getPricingPlanById);
 
 /**
  * @openapi
- * /api/payment/pricing-plans:
+ * /api/payment/pricing-plans/{associationId}:
  *   post:
  *     tags:
  *       - Pricing Plans
  *     summary: 創建定價方案
- *     description: 為協會創建新的定價方案
+ *     description: 為協會創建新的定價方案（已棄用 - 請使用 /api/association/associations/{id}/pricing-plans）
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: associationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 協會 ID
  *     requestBody:
  *       required: true
  *       content:
@@ -127,8 +147,11 @@ router.use(authMiddleware);
  *         description: 權限不足
  *       500:
  *         description: 服務器錯誤
+ *     deprecated: true
  */
-router.post('/', pricingPlanController.createPricingPlan);
+router.post('/:associationId', authMiddleware, pricingPlanController.createPricingPlan);
+
+// 需要認證的路由
 
 /**
  * @openapi
@@ -180,7 +203,52 @@ router.post('/', pricingPlanController.createPricingPlan);
  *       500:
  *         description: 服務器錯誤
  */
-router.patch('/:id', pricingPlanController.updatePricingPlan);
+router.patch('/:id', authMiddleware, pricingPlanController.updatePricingPlan);
+
+/**
+ * @openapi
+ * /api/payment/pricing-plans/{id}:
+ *   delete:
+ *     tags:
+ *       - Pricing Plans
+ *     summary: 刪除定價方案
+ *     description: 刪除指定 ID 的定價方案
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 定價方案 ID
+ *     responses:
+ *       200:
+ *         description: 定價方案刪除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     message:
+ *                       type: string
+ *                       example: 定價方案已刪除
+ *       401:
+ *         description: 未授權
+ *       403:
+ *         description: 權限不足
+ *       404:
+ *         description: 定價方案不存在
+ *       500:
+ *         description: 服務器錯誤
+ */
+router.delete('/:id', authMiddleware, pricingPlanController.deletePricingPlan);
 
 /**
  * @openapi

@@ -3,7 +3,6 @@ import { PrismaClient, MembershipStatus } from '@prisma/client';
 import { StripeConfig } from '../config/stripe.config';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from '../dtos/purchase-order.dto';
 import { ApiError } from '../../types/error.types';
-import { nanoid } from 'nanoid';
 
 /**
  * 購買訂單服務
@@ -62,7 +61,8 @@ export class PurchaseOrderService {
             } as ApiError;
         }
 
-        // 生成訂單號
+        // 生成訂單號 - 使用動態導入
+        const { nanoid } = await import('nanoid');
         const orderNumber = `ORDER-${nanoid(10)}`;
 
         // 創建購買訂單

@@ -8,6 +8,7 @@ import { AnalyticsController } from '../controllers/AnalyticsController';
 import { AffiliationController } from '../controllers/AffiliationController';
 import { MemberInvitationController } from '../controllers/MemberInvitationController';
 import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
+import associationPricingPlanRoutes from '../../payment/routes/association-pricing-plan.routes';
 import multer from 'multer';
 
 const router = Router();
@@ -60,6 +61,9 @@ router.post(
     upload.single('banner') as any,
     associationController.uploadBanner,
 );
+
+// 協會定價方案管理路由 (RESTful API)
+router.use('/associations/:associationId/pricing-plans', associationPricingPlanRoutes);
 
 // 會員目錄路由
 router.get('/associations/:id/members', memberController.getMembers);

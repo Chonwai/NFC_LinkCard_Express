@@ -6,6 +6,8 @@ declare global {
                 email: string;
                 username: string;
             };
+            associationId?: string;
+            userRole?: string;
         }
     }
 }
