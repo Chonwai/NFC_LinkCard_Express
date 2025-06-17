@@ -1,5 +1,6 @@
 import { Service } from 'typedi';
 import { PrismaClient, MembershipStatus } from '@prisma/client';
+import { nanoid } from 'nanoid';
 import { StripeConfig } from '../config/stripe.config';
 import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from '../dtos/purchase-order.dto';
 import { ApiError } from '../../types/error.types';
@@ -61,8 +62,7 @@ export class PurchaseOrderService {
             } as ApiError;
         }
 
-        // 生成訂單號 - 使用動態導入
-        const { nanoid } = await import('nanoid');
+        // 生成訂單號
         const orderNumber = `ORDER-${nanoid(10)}`;
 
         // 創建購買訂單
@@ -175,6 +175,45 @@ export class PurchaseOrderService {
             throw {
                 message: '購買訂單不存在',
                 code: 'PURCHASE_ORDER_NOT_FOUND',
+                status: 404,
+            } as ApiError;
+        }
+
+        return order;
+    }
+
+    /**
+     * 通過 Stripe Session ID 獲取購買訂單
+     */
+    async getOrderBySessionId(sessionId: string) {
+        const order = await this.prisma.purchaseOrder.findFirst({
+            where: {
+                stripeData: {
+                    path: ['sessionId'],
+                    equals: sessionId,
+                },
+            },
+            include: {
+                pricingPlan: {
+                    include: {
+                        association: true,
+                    },
+                },
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                        display_name: true,
+                    },
+                },
+            },
+        });
+
+        if (!order) {
+            throw {
+                message: '找不到對應的購買訂單',
+                code: 'ORDER_NOT_FOUND_BY_SESSION',
                 status: 404,
             } as ApiError;
         }

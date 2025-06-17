@@ -10,6 +10,8 @@ import { MemberInvitationController } from '../controllers/MemberInvitationContr
 import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
 import associationPricingPlanRoutes from '../../payment/routes/association-pricing-plan.routes';
 import multer from 'multer';
+import { AssociationPricingPlanController } from '../../payment/controllers/AssociationPricingPlanController';
+import { PublicPricingPlanController } from '../../payment/controllers/PublicPricingPlanController';
 
 const router = Router();
 
@@ -36,6 +38,8 @@ const analyticsController = Container.get(AnalyticsController);
 const affiliationController = Container.get(AffiliationController);
 const memberInvitationController = Container.get(MemberInvitationController);
 const profileBadgeController = Container.get(ProfileBadgeController);
+const associationPricingPlanController = Container.get(AssociationPricingPlanController);
+const publicPricingPlanController = Container.get(PublicPricingPlanController);
 
 // 協會資料管理路由
 router.post('/associations', authMiddleware, associationController.createAssociation);
@@ -64,6 +68,12 @@ router.post(
 
 // 協會定價方案管理路由 (RESTful API)
 router.use('/associations/:associationId/pricing-plans', associationPricingPlanRoutes);
+
+// 公開端點 - 查看協會的定價方案（無需認證）
+router.get(
+    '/:associationId/pricing-plans',
+    publicPricingPlanController.getPublicAssociationPricingPlans,
+);
 
 // 會員目錄路由
 router.get('/associations/:id/members', memberController.getMembers);

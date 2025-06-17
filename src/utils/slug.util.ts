@@ -1,11 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-//nanoid v3 or lower is CJS, v4+ is ESM only. Assuming project setup allows CJS or nanoid v3 is used.
-// If using nanoid v4+ with ESM, the import would be: import { customAlphabet } from 'nanoid';
-// For broad compatibility with common project setups (especially older TS/Node configurations that might default to CJS for node_modules),
-// we might need to use require if it's an older version or if the project isn't configured for ESM imports from node_modules.
-// However, typical modern TypeScript setups with `moduleResolution: "node"` should handle `import { customAlphabet } from 'nanoid';` fine if nanoid is listed in dependencies.
-// Let's assume a compatible version of nanoid is installed that works with this import style.
-// import { customAlphabet } from 'nanoid'; // Removed static import
+import { customAlphabet } from 'nanoid';
 
 const prisma = new PrismaClient(); // TODO: Consider injecting PrismaClient for better testability
 
@@ -38,18 +32,13 @@ export async function generateProfileSlug(name: string, _userId?: string): Promi
             return finalSlug;
         }
         // If slug exists, append a short random string
-        const { customAlphabet } = await import('nanoid'); // Dynamic import
         const generateNanoId = customAlphabet('1234567890abcdef', 6);
         finalSlug = `${baseSlug}-${generateNanoId()}`;
         attempts++;
     }
 
     // Fallback to a more random slug if attempts fail
-    const { customAlphabet: customAlphabetFallback } = await import('nanoid'); // Dynamic import for fallback
-    const generateNanoIdFallback = customAlphabetFallback(
-        '1234567890abcdefghijklmnopqrstuvwxyz',
-        10,
-    );
+    const generateNanoIdFallback = customAlphabet('1234567890abcdefghijklmnopqrstuvwxyz', 10);
     return `${baseSlug}-${generateNanoIdFallback()}`;
 }
 

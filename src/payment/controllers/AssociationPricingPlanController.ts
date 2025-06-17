@@ -6,6 +6,7 @@ import { PricingPlanService } from '../services/PricingPlanService';
 import { CreatePricingPlanDto, UpdatePricingPlanDto } from '../dtos/pricing-plan.dto';
 import { ApiResponse } from '../../utils/apiResponse';
 import { ApiError } from '../../types/error.types';
+import { PrismaClient } from '@prisma/client';
 
 /**
  * 協會定價方案控制器 (RESTful API)
@@ -14,7 +15,11 @@ import { ApiError } from '../../types/error.types';
  */
 @Service()
 export class AssociationPricingPlanController {
-    constructor(private readonly pricingPlanService: PricingPlanService) {}
+    private prisma: PrismaClient;
+
+    constructor(private readonly pricingPlanService: PricingPlanService) {
+        this.prisma = new PrismaClient();
+    }
 
     /**
      * 獲取協會的定價方案列表
@@ -44,16 +49,16 @@ export class AssociationPricingPlanController {
     getPricingPlan = async (req: Request, res: Response) => {
         try {
             const { planId } = req.params;
-            const associationId = req.associationId!;
+            const associationId = req.associationId!; // 來自權限中間件
 
             const plan = await this.pricingPlanService.getPricingPlanById(planId);
 
-            // 驗證定價方案屬於該協會
+            // 驗證定價方案是否屬於指定協會
             if (plan.associationId !== associationId) {
                 return ApiResponse.error(
                     res,
-                    '定價方案不屬於該協會',
-                    'PLAN_NOT_BELONG_TO_ASSOCIATION',
+                    '定價方案不屬於指定協會',
+                    'PRICING_PLAN_ASSOCIATION_MISMATCH',
                     null,
                     400,
                 );
@@ -79,6 +84,7 @@ export class AssociationPricingPlanController {
     createPricingPlan = async (req: Request, res: Response) => {
         try {
             const associationId = req.associationId!; // 來自權限中間件
+
             const createPricingPlanDto = plainToClass(CreatePricingPlanDto, req.body);
             const errors = await validate(createPricingPlanDto);
 
@@ -110,15 +116,15 @@ export class AssociationPricingPlanController {
     updatePricingPlan = async (req: Request, res: Response) => {
         try {
             const { planId } = req.params;
-            const associationId = req.associationId!;
+            const associationId = req.associationId!; // 來自權限中間件
 
-            // 先驗證定價方案存在且屬於該協會
+            // 先驗證定價方案是否屬於指定協會
             const existingPlan = await this.pricingPlanService.getPricingPlanById(planId);
             if (existingPlan.associationId !== associationId) {
                 return ApiResponse.error(
                     res,
-                    '定價方案不屬於該協會',
-                    'PLAN_NOT_BELONG_TO_ASSOCIATION',
+                    '定價方案不屬於指定協會',
+                    'PRICING_PLAN_ASSOCIATION_MISMATCH',
                     null,
                     400,
                 );
@@ -149,21 +155,21 @@ export class AssociationPricingPlanController {
     };
 
     /**
-     * 刪除定價方案 (軟刪除)
+     * 刪除定價方案
      * DELETE /api/associations/{associationId}/pricing-plans/{planId}
      */
     deletePricingPlan = async (req: Request, res: Response) => {
         try {
             const { planId } = req.params;
-            const associationId = req.associationId!;
+            const associationId = req.associationId!; // 來自權限中間件
 
-            // 先驗證定價方案存在且屬於該協會
+            // 先驗證定價方案是否屬於指定協會
             const existingPlan = await this.pricingPlanService.getPricingPlanById(planId);
             if (existingPlan.associationId !== associationId) {
                 return ApiResponse.error(
                     res,
-                    '定價方案不屬於該協會',
-                    'PLAN_NOT_BELONG_TO_ASSOCIATION',
+                    '定價方案不屬於指定協會',
+                    'PRICING_PLAN_ASSOCIATION_MISMATCH',
                     null,
                     400,
                 );
@@ -190,26 +196,23 @@ export class AssociationPricingPlanController {
     activatePricingPlan = async (req: Request, res: Response) => {
         try {
             const { planId } = req.params;
-            const associationId = req.associationId!;
-            const userId = req.user?.id;
+            const associationId = req.associationId!; // 來自權限中間件
 
-            if (!userId) {
-                return ApiResponse.unauthorized(res, '用戶未認證', 'USER_NOT_AUTHENTICATED');
-            }
-
-            // 先驗證定價方案存在且屬於該協會
+            // 先驗證定價方案是否屬於指定協會
             const existingPlan = await this.pricingPlanService.getPricingPlanById(planId);
             if (existingPlan.associationId !== associationId) {
                 return ApiResponse.error(
                     res,
-                    '定價方案不屬於該協會',
-                    'PLAN_NOT_BELONG_TO_ASSOCIATION',
+                    '定價方案不屬於指定協會',
+                    'PRICING_PLAN_ASSOCIATION_MISMATCH',
                     null,
                     400,
                 );
             }
 
-            const plan = await this.pricingPlanService.activatePricingPlan(planId, userId);
+            const plan = await this.pricingPlanService.updatePricingPlan(planId, {
+                isActive: true,
+            });
             return ApiResponse.success(res, { plan });
         } catch (error: unknown) {
             const apiError = error as ApiError;
@@ -230,26 +233,23 @@ export class AssociationPricingPlanController {
     deactivatePricingPlan = async (req: Request, res: Response) => {
         try {
             const { planId } = req.params;
-            const associationId = req.associationId!;
-            const userId = req.user?.id;
+            const associationId = req.associationId!; // 來自權限中間件
 
-            if (!userId) {
-                return ApiResponse.unauthorized(res, '用戶未認證', 'USER_NOT_AUTHENTICATED');
-            }
-
-            // 先驗證定價方案存在且屬於該協會
+            // 先驗證定價方案是否屬於指定協會
             const existingPlan = await this.pricingPlanService.getPricingPlanById(planId);
             if (existingPlan.associationId !== associationId) {
                 return ApiResponse.error(
                     res,
-                    '定價方案不屬於該協會',
-                    'PLAN_NOT_BELONG_TO_ASSOCIATION',
+                    '定價方案不屬於指定協會',
+                    'PRICING_PLAN_ASSOCIATION_MISMATCH',
                     null,
                     400,
                 );
             }
 
-            const plan = await this.pricingPlanService.deactivatePricingPlan(planId, userId);
+            const plan = await this.pricingPlanService.updatePricingPlan(planId, {
+                isActive: false,
+            });
             return ApiResponse.success(res, { plan });
         } catch (error: unknown) {
             const apiError = error as ApiError;

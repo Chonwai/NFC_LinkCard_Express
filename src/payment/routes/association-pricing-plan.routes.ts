@@ -7,7 +7,7 @@ import {
     checkAssociationAccessPermission,
 } from '../middleware/association-permission.middleware';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 const associationPricingPlanController = Container.get(AssociationPricingPlanController);
 
 /**
@@ -17,7 +17,7 @@ const associationPricingPlanController = Container.get(AssociationPricingPlanCon
  * 路由格式: /api/associations/{associationId}/pricing-plans
  */
 
-// 公開端點 - 獲取協會定價方案（需要是協會成員）
+// 獲取協會定價方案（需要是協會成員）
 router.get(
     '/',
     authMiddleware,

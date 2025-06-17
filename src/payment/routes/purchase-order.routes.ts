@@ -28,6 +28,13 @@ const purchaseOrderController = Container.get(PurchaseOrderController);
  */
 router.post('/webhook', purchaseOrderController.handleStripeWebhook);
 
+// 支付狀態查詢（通過 session_id）
+router.get(
+    '/status/session/:sessionId',
+    authMiddleware,
+    purchaseOrderController.getPaymentStatusBySessionId,
+);
+
 // 需要認證的路由
 router.use(authMiddleware);
 
