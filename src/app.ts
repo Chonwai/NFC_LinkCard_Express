@@ -6,7 +6,6 @@ import profileRoutes from './routes/profiles';
 import linkRoutes from './routes/links';
 import associationRoutes from './association/routes';
 import paymentRoutes from './payment/routes';
-import { stripeWebhookMiddleware } from './payment/middleware/webhook.middleware';
 
 const app = express();
 
@@ -22,28 +21,12 @@ app.use(
             'http://localhost:4000',
             'https://link-card-frontend.vercel.app',
             'http://link-card-frontend.vercel.app',
-            'link-card-frontend.vercel.app',
-            'https://nfc-link-card-express.vercel.app',
-            'http://nfc-link-card-express.vercel.app',
-            'nfc-link-card-express.vercel.app',
             'https://nfc-link-card-next-js.vercel.app',
             'http://nfc-link-card-next-js.vercel.app',
-            'nfc-link-card-next-js.vercel.app',
             'https://link-card.xyz',
             'http://link-card.xyz',
-            'link-card.xyz',
-            'https://www.link-card.xyz',
-            'http://www.link-card.xyz',
-            'www.link-card.xyz',
-            'https://staging.link-card.xyz',
-            'http://staging.link-card.xyz',
-            'staging.link-card.xyz',
-            'https://prod-link-card-frontend.vercel.app',
-            'http://prod-link-card-frontend.vercel.app',
-            'prod-link-card-frontend.vercel.app',
-            'https://staging-link-card-frontend.vercel.app',
-            'http://staging-link-card-frontend.vercel.app',
-            'staging-link-card-frontend.vercel.app',
+            'https://linkcard.xyz',
+            'http://linkcard.xyz',
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
@@ -53,15 +36,17 @@ app.use(
     }),
 );
 
-// Stripe Webhook 中間件必須在 JSON 解析之前
-app.use(stripeWebhookMiddleware);
+// Stripe Webhook 特定處理 - 必須在 express.json() 之前
+app.use('/api/payment/purchase-orders/webhook', express.raw({ type: 'application/json' }));
 
+// 配置請求體解析（一般 API）
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-app.use('/api/profiles', profileRoutes);
-app.use('/api/links', linkRoutes);
+// 註冊路由
 app.use('/api', routes);
+app.use('/profiles', profileRoutes);
+app.use('/links', linkRoutes);
 app.use('/api/association', associationRoutes);
 app.use('/api/payment', paymentRoutes);
 
