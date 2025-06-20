@@ -1,4 +1,23 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CustomizationDto {
+    @IsBoolean()
+    @IsOptional()
+    associationBadge?: boolean = true;
+
+    @IsBoolean()
+    @IsOptional()
+    associationTheme?: boolean = true;
+
+    @IsString()
+    @IsOptional()
+    associationBranding?: string;
+
+    @IsString()
+    @IsOptional()
+    profileType?: string = 'ASSOCIATION_MEMBER';
+}
 
 export class CreateAssociationProfileDto {
     @IsString()
@@ -12,4 +31,10 @@ export class CreateAssociationProfileDto {
     @IsBoolean()
     @IsOptional()
     isPublic?: boolean = true; // 默認公開
+
+    @IsObject()
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => CustomizationDto)
+    customization?: CustomizationDto;
 }

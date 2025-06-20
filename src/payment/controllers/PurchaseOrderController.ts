@@ -3,10 +3,18 @@ import { Service } from 'typedi';
 import { plainToClass } from 'class-transformer';
 import { validate } from 'class-validator';
 import { PurchaseOrderService } from '../services/PurchaseOrderService';
-import { CreatePurchaseOrderDto } from '../dtos/purchase-order.dto';
+import {
+    CreatePurchaseOrderDto,
+    CreateAssociationProfileFromOrderDto,
+    ProfileCreationOptionsResponseDto,
+} from '../dtos/purchase-order.dto';
 import { ApiResponse } from '../../utils/apiResponse';
 import { ApiError } from '../../types/error.types';
 import prisma from '../../lib/prisma';
+import { ProfileService } from '../../services/ProfileService';
+import { ProfileBadgeService } from '../../association/services/ProfileBadgeService';
+import { generateRandomChars } from '../../utils/token';
+import { BadgeDisplayMode } from '@prisma/client';
 
 /**
  * 購買訂單控制器
@@ -14,7 +22,11 @@ import prisma from '../../lib/prisma';
  */
 @Service()
 export class PurchaseOrderController {
-    constructor(private readonly purchaseOrderService: PurchaseOrderService) {}
+    constructor(
+        private readonly purchaseOrderService: PurchaseOrderService,
+        private readonly profileService: ProfileService,
+        private readonly profileBadgeService: ProfileBadgeService,
+    ) {}
 
     /**
      * 創建購買訂單和 Stripe 結帳會話
@@ -197,6 +209,7 @@ export class PurchaseOrderController {
                     id: order.id,
                     orderNumber: order.orderNumber,
                     status: order.status,
+                    associationId: order.associationId, // 前端需要的關鍵字段
                     amount: order.amount,
                     currency: order.currency,
                     paidAt: order.paidAt,
@@ -252,6 +265,216 @@ export class PurchaseOrderController {
                 'WEBHOOK_PROCESSING_ERROR',
                 apiError.message,
                 apiError.status || 400,
+            );
+        }
+    };
+
+    /**
+     * 獲取支付後的Profile創建選項
+     * GET /api/payment/purchase-orders/:orderId/profile-creation-options
+     */
+    getProfileCreationOptions = async (req: Request, res: Response) => {
+        try {
+            const { orderId } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.unauthorized(res, '用戶未認證', 'USER_NOT_AUTHENTICATED');
+            }
+
+            // 獲取訂單信息並驗證權限
+            const order = await this.purchaseOrderService.getPurchaseOrderById(orderId);
+
+            if (order.userId !== userId) {
+                return ApiResponse.forbidden(res, '無權訪問此訂單', 'UNAUTHORIZED_ACCESS');
+            }
+
+            if (order.status !== 'PAID') {
+                return ApiResponse.badRequest(res, '訂單尚未支付完成', 'ORDER_NOT_PAID');
+            }
+
+            // 獲取協會信息
+            const association = await prisma.association.findUnique({
+                where: { id: order.associationId },
+            });
+
+            if (!association) {
+                return ApiResponse.notFound(res, '協會不存在', 'ASSOCIATION_NOT_FOUND');
+            }
+
+            // 獲取用戶信息
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            if (!user) {
+                return ApiResponse.notFound(res, '用戶不存在', 'USER_NOT_FOUND');
+            }
+
+            // 獲取用戶Profile信息
+            const userProfiles = await prisma.profile.findMany({
+                where: { user_id: userId },
+                select: { id: true, is_default: true },
+            });
+
+            const hasDefaultProfile = userProfiles.some((p) => p.is_default);
+            const totalProfiles = userProfiles.length;
+
+            // 生成建議的Profile名稱和描述
+            const suggestedProfileName = `${association.name} - ${
+                user.display_name || user.username
+            }`;
+            const suggestedProfileDescription = `Member of ${association.name}`;
+
+            const responseData: ProfileCreationOptionsResponseDto = {
+                order: {
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                    status: order.status,
+                    paidAt: order.paidAt!,
+                    membershipStartDate: order.membershipStartDate!,
+                    membershipEndDate: order.membershipEndDate!,
+                },
+                association: {
+                    id: association.id,
+                    name: association.name,
+                    slug: association.slug,
+                    logo: association.logo || undefined,
+                    description: association.description || undefined,
+                },
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    displayName: user.display_name || undefined,
+                    hasDefaultProfile,
+                    totalProfiles,
+                },
+                canCreateAssociationProfile: true, // 支付成功的用戶總是可以創建
+                suggestedProfileName,
+                suggestedProfileDescription,
+            };
+
+            return ApiResponse.success(res, responseData);
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '獲取Profile創建選項失敗',
+                'GET_PROFILE_OPTIONS_ERROR',
+                apiError.message,
+                apiError.status || 500,
+            );
+        }
+    };
+
+    /**
+     * 基於支付訂單創建協會專屬Profile
+     * POST /api/payment/purchase-orders/:orderId/association-profile
+     */
+    createAssociationProfileFromOrder = async (req: Request, res: Response) => {
+        try {
+            const { orderId } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                return ApiResponse.unauthorized(res, '用戶未認證', 'USER_NOT_AUTHENTICATED');
+            }
+
+            const dto = plainToClass(CreateAssociationProfileFromOrderDto, req.body);
+            const errors = await validate(dto);
+            if (errors.length > 0) {
+                return ApiResponse.validationError(res, errors);
+            }
+
+            // 獲取訂單信息並驗證權限
+            const order = await this.purchaseOrderService.getPurchaseOrderById(orderId);
+
+            if (order.userId !== userId) {
+                return ApiResponse.forbidden(res, '無權訪問此訂單', 'UNAUTHORIZED_ACCESS');
+            }
+
+            if (order.status !== 'PAID') {
+                return ApiResponse.badRequest(res, '訂單尚未支付完成', 'ORDER_NOT_PAID');
+            }
+
+            // 檢查用戶是否為協會成員
+            const membership = await prisma.associationMember.findUnique({
+                where: {
+                    associationId_userId: {
+                        associationId: order.associationId,
+                        userId: userId,
+                    },
+                },
+            });
+
+            if (!membership) {
+                return ApiResponse.forbidden(res, '用戶不是協會成員', 'NOT_MEMBER');
+            }
+
+            // 獲取協會和用戶信息
+            const [association, user] = await Promise.all([
+                prisma.association.findUnique({ where: { id: order.associationId } }),
+                prisma.user.findUnique({ where: { id: userId } }),
+            ]);
+
+            if (!association || !user) {
+                return ApiResponse.notFound(res, '協會或用戶不存在', 'RESOURCE_NOT_FOUND');
+            }
+
+            // 準備Profile數據
+            const profileData = {
+                name: dto.name || `${association.name} - ${user.display_name || user.username}`,
+                description: dto.description || `Member of ${association.name}`,
+                is_public: dto.isPublic !== undefined ? dto.isPublic : true,
+                meta: {
+                    associationId: association.id,
+                    isAssociationProfile: true,
+                    createdFromOrderId: orderId,
+                },
+            };
+
+            // 創建Profile
+            const newProfile = await this.profileService.create(profileData, userId);
+
+            // 自動添加協會徽章
+            let badgeAdded = false;
+            try {
+                const badgeDto = {
+                    profileId: newProfile.id,
+                    associationId: association.id,
+                    displayMode: BadgeDisplayMode.FULL,
+                    isVisible: true,
+                    displayOrder: 0,
+                };
+                await this.profileBadgeService.createProfileBadge(badgeDto, userId);
+                badgeAdded = true;
+                console.log(`✅ 已為訂單 ${orderId} 創建協會Profile並添加徽章: ${newProfile.id}`);
+            } catch (badgeError) {
+                console.error(
+                    `創建Profile徽章失敗 (Profile: ${newProfile.id}, Association: ${association.id}):`,
+                    badgeError,
+                );
+                // 即使徽章創建失敗，Profile已創建成功，繼續返回結果
+            }
+
+            return ApiResponse.created(res, {
+                profile: newProfile,
+                association: {
+                    id: association.id,
+                    name: association.name,
+                    slug: association.slug,
+                    logo: association.logo,
+                },
+                badgeAdded,
+                message: badgeAdded
+                    ? '協會Profile創建成功並已添加徽章'
+                    : '協會Profile創建成功，但徽章添加失敗',
+            });
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '創建協會Profile失敗',
+                'CREATE_ASSOCIATION_PROFILE_ERROR',
+                apiError.message,
+                apiError.status || 500,
             );
         }
     };

@@ -394,6 +394,15 @@ export class AssociationController {
             }
 
             // --- 創建 Profile ---
+            // 準備customization數據
+            const customization = dto.customization || {};
+            const profileCustomization = {
+                associationBadge: customization.associationBadge !== false,
+                associationTheme: customization.associationTheme !== false,
+                associationBranding: customization.associationBranding || association.name,
+                profileType: customization.profileType || 'ASSOCIATION_MEMBER',
+            };
+
             // 準備傳遞給 ProfileService 的數據
             const profileData: CreateProfileDto = {
                 // 使用基礎的 CreateProfileDto
@@ -401,10 +410,11 @@ export class AssociationController {
                 description: dto.description || `Member of ${association.name}`, // 默認描述
                 is_public: dto.isPublic !== undefined ? dto.isPublic : true,
                 slug: `${association.slug}-${generateRandomChars(8)}`, // 生成唯一的 slug
-                // 可以添加一個 meta 字段標識這是協會 Profile
+                // 同時保留meta和customization字段
                 meta: {
                     associationId: associationId,
                     isAssociationProfile: true,
+                    customization: profileCustomization,
                 },
                 // 其他 Profile 必需的字段 (如果有的話)
             };
@@ -413,25 +423,42 @@ export class AssociationController {
             const newProfile = await this.profileService.create(profileData, userId);
 
             // --- 自動添加協會徽章到新 Profile ---
-            // 使用 ProfileBadgeService 添加徽章
-            try {
-                await this.profileBadgeService.createProfileBadge(
-                    {
-                        profileId: newProfile.id,
-                        associationId: associationId,
-                        displayMode: BadgeDisplayMode.FULL, // 默認顯示模式 (如果實現了)
-                    },
-                    userId,
-                );
-            } catch (badgeError) {
-                // 即使徽章創建失敗，Profile 也已創建，記錄錯誤但繼續
-                console.error(
-                    `Failed to add badge to new profile ${newProfile.id} for association ${associationId}:`,
-                    badgeError,
-                );
+            let badgeInfo = null;
+            if (profileCustomization.associationBadge) {
+                try {
+                    const badge = await this.profileBadgeService.createProfileBadge(
+                        {
+                            profileId: newProfile.id,
+                            associationId: associationId,
+                            displayMode: BadgeDisplayMode.FULL, // 默認顯示模式 (如果實現了)
+                        },
+                        userId,
+                    );
+
+                    badgeInfo = {
+                        id: badge.id,
+                        associationId: badge.associationId,
+                        associationName: badge.associationName,
+                        logo: badge.associationLogo,
+                        color: (association.customization as any)?.primaryColor || '#3B82F6',
+                    };
+                } catch (badgeError) {
+                    // 即使徽章創建失敗，Profile 也已創建，記錄錯誤但繼續
+                    console.error(
+                        `Failed to add badge to new profile ${newProfile.id} for association ${associationId}:`,
+                        badgeError,
+                    );
+                }
             }
 
-            return ApiResponse.success(res, { profile: newProfile }, 201);
+            // 構建符合前端期望的響應格式
+            const responseProfile = {
+                ...newProfile,
+                customization: profileCustomization,
+                badges: badgeInfo ? [badgeInfo] : [],
+            };
+
+            return ApiResponse.success(res, { profile: responseProfile }, 201);
         } catch (error: any) {
             console.error('創建協會 Profile 失敗:', error);
             return ApiResponse.error(

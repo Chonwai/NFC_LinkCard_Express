@@ -28,9 +28,6 @@ const purchaseOrderController = Container.get(PurchaseOrderController);
  */
 router.post('/webhook', purchaseOrderController.handleStripeWebhook);
 
-// 需要認證的路由
-router.use(authMiddleware);
-
 /**
  * @openapi
  * /api/payment/purchase-orders:
@@ -38,7 +35,7 @@ router.use(authMiddleware);
  *     tags:
  *       - Purchase Orders
  *     summary: 創建購買訂單
- *     description: 創建新的購買訂單並生成 Stripe 結帳會話
+ *     description: 創建購買訂單和 Stripe 結帳會話
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -48,32 +45,14 @@ router.use(authMiddleware);
  *           schema:
  *             $ref: '#/components/schemas/CreatePurchaseOrderDto'
  *     responses:
- *       201:
+ *       200:
  *         description: 購買訂單創建成功
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     order:
- *                       $ref: '#/components/schemas/PurchaseOrder'
- *                     checkoutUrl:
- *                       type: string
- *                       description: Stripe 結帳頁面 URL
  *       400:
- *         description: 請求數據無效
+ *         description: 請求無效
  *       401:
  *         description: 未授權
- *       500:
- *         description: 服務器錯誤
  */
-router.post('/', purchaseOrderController.createPurchaseOrder);
+router.post('/', authMiddleware, purchaseOrderController.createPurchaseOrder);
 
 /**
  * @openapi
@@ -152,7 +131,142 @@ router.get('/', purchaseOrderController.getUserPurchaseOrders);
  */
 router.get('/:id', purchaseOrderController.getPurchaseOrderById);
 
-// 支付狀態查詢（通過 session_id）
-router.get('/status/session/:sessionId', purchaseOrderController.getPaymentStatusBySessionId);
+/**
+ * @openapi
+ * /api/payment/purchase-orders/payment-status/{sessionId}:
+ *   get:
+ *     tags:
+ *       - Purchase Orders
+ *     summary: 查詢支付狀態（推薦）
+ *     description: 根據 Stripe Session ID 查詢支付狀態。這是推薦的標準API路徑。
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: sessionId
+ *         in: path
+ *         required: true
+ *         description: Stripe Session ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 支付狀態查詢成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     order:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         associationId:
+ *                           type: string
+ *                           description: 協會ID，用於判斷是否為協會購買
+ *                         association:
+ *                           type: object
+ *                           properties:
+ *                             name:
+ *                               type: string
+ *                               description: 協會名稱，用於Profile命名建議
+ *                     paymentStatus:
+ *                       type: string
+ *                       enum: [PENDING, PAID, FAILED, CANCELLED]
+ *                       description: 支付狀態
+ *       404:
+ *         description: 訂單未找到
+ */
+router.get(
+    '/payment-status/:sessionId',
+    authMiddleware,
+    purchaseOrderController.getPaymentStatusBySessionId,
+);
+
+/**
+ * @openapi
+ * /api/payment/purchase-orders/{orderId}/profile-creation-options:
+ *   get:
+ *     tags:
+ *       - Purchase Orders
+ *     summary: 獲取支付後的Profile創建選項
+ *     description: 支付成功後，獲取創建協會專屬Profile的選項和建議
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: orderId
+ *         in: path
+ *         required: true
+ *         description: 訂單ID
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 成功獲取Profile創建選項
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ProfileCreationOptionsResponse'
+ *       400:
+ *         description: 訂單尚未支付完成
+ *       403:
+ *         description: 無權訪問此訂單
+ *       404:
+ *         description: 訂單不存在
+ */
+router.get(
+    '/:orderId/profile-creation-options',
+    authMiddleware,
+    purchaseOrderController.getProfileCreationOptions,
+);
+
+/**
+ * @openapi
+ * /api/payment/purchase-orders/{orderId}/association-profile:
+ *   post:
+ *     tags:
+ *       - Purchase Orders
+ *     summary: 基於支付訂單創建協會專屬Profile
+ *     description: 支付成功後，為用戶創建協會專屬Profile並自動添加協會徽章
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - name: orderId
+ *         in: path
+ *         required: true
+ *         description: 訂單ID
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateAssociationProfileFromOrderDto'
+ *     responses:
+ *       201:
+ *         description: 協會Profile創建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AssociationProfileCreationResponse'
+ *       400:
+ *         description: 訂單尚未支付完成或驗證失敗
+ *       403:
+ *         description: 無權訪問此訂單或不是協會成員
+ *       404:
+ *         description: 訂單不存在
+ */
+router.post(
+    '/:orderId/association-profile',
+    authMiddleware,
+    purchaseOrderController.createAssociationProfileFromOrder,
+);
 
 export default router;

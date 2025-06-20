@@ -1,9 +1,18 @@
 import { Service } from 'typedi';
-import { PrismaClient, MembershipStatus } from '@prisma/client';
+import { PrismaClient, MembershipStatus, BadgeDisplayMode } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { StripeConfig } from '../config/stripe.config';
-import { CreatePurchaseOrderDto, UpdatePurchaseOrderDto } from '../dtos/purchase-order.dto';
+import {
+    CreatePurchaseOrderDto,
+    UpdatePurchaseOrderDto,
+    CreateAssociationProfileFromOrderDto,
+    ProfileCreationOptionsResponseDto,
+} from '../dtos/purchase-order.dto';
 import { ApiError } from '../../types/error.types';
+import { ProfileBadgeService } from '../../association/services/ProfileBadgeService';
+import { CreateProfileBadgeDto } from '../../association/dtos/profile-badge.dto';
+import * as crypto from 'crypto';
+import { generateRandomChars } from '../../utils/token';
 
 /**
  * 購買訂單服務
@@ -13,9 +22,11 @@ import { ApiError } from '../../types/error.types';
 export class PurchaseOrderService {
     private prisma: PrismaClient;
     private stripe = StripeConfig.getClient();
+    private readonly profileBadgeService: ProfileBadgeService;
 
-    constructor() {
+    constructor(profileBadgeService: ProfileBadgeService) {
         this.prisma = new PrismaClient();
+        this.profileBadgeService = profileBadgeService;
     }
 
     /**
@@ -299,7 +310,7 @@ export class PurchaseOrderService {
         }
 
         // 使用事務處理支付成功邏輯
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             // 更新訂單狀態
             const updatedOrder = await tx.purchaseOrder.update({
                 where: { id: purchaseOrderId },
@@ -366,6 +377,75 @@ export class PurchaseOrderService {
 
             return updatedOrder;
         });
+
+        // 🎯 新增：處理用戶 Profile 和協會徽章 (在事務外執行以避免複雜性)
+        await this.ensureUserProfileAndBadge(order.userId, order.associationId);
+
+        return result;
+    }
+
+    /**
+     * 智能徽章處理：只為現有 Profile 添加徽章，不自動創建 Profile
+     *
+     * 🎯 新架構說明：
+     * - 這個方法只負責為已有Profile用戶自動添加徽章
+     * - Profile創建選項通過新的API讓用戶決定：
+     *   - GET /api/payment/purchase-orders/:orderId/profile-creation-options
+     *   - POST /api/payment/purchase-orders/:orderId/association-profile
+     *
+     * 避免對已有 Profile 的用戶造成困擾，特別是續費場景
+     */
+    private async ensureUserProfileAndBadge(userId: string, associationId: string) {
+        try {
+            // 查找用戶的默認 Profile
+            const defaultProfile = await this.prisma.profile.findFirst({
+                where: { user_id: userId, is_default: true },
+            });
+
+            // 🎯 只有當用戶已有 Profile 時才自動添加徽章
+            if (defaultProfile) {
+                try {
+                    // 檢查徽章是否已存在
+                    const existingBadge = await this.prisma.profileBadge.findFirst({
+                        where: {
+                            profileId: defaultProfile.id,
+                            associationId: associationId,
+                        },
+                    });
+
+                    if (!existingBadge) {
+                        // 創建協會徽章
+                        const badgeDto: CreateProfileBadgeDto = {
+                            profileId: defaultProfile.id,
+                            associationId: associationId,
+                            userId: userId,
+                            displayMode: BadgeDisplayMode.FULL,
+                            isVisible: true,
+                            displayOrder: 0,
+                        };
+                        await this.profileBadgeService.createProfileBadge(badgeDto, userId);
+                        console.log(
+                            `✅ 已為付費用戶 ${userId} 的 Profile ${defaultProfile.id} 自動添加協會徽章`,
+                        );
+                    } else {
+                        console.log(
+                            `ℹ️ 付費用戶 ${userId} 的 Profile ${defaultProfile.id} 已存在協會徽章，跳過`,
+                        );
+                    }
+                } catch (badgeError) {
+                    console.error(
+                        `❌ 為付費用戶 ${userId} 的 Profile ${defaultProfile.id} 添加徽章失敗:`,
+                        badgeError,
+                    );
+                }
+            } else {
+                console.log(
+                    `ℹ️ 付費用戶 ${userId} 沒有默認 Profile，跳過自動徽章添加。用戶可通過前端選擇創建協會專屬 Profile。`,
+                );
+            }
+        } catch (error) {
+            console.error(`❌ 處理付費用戶 ${userId} 的 Profile 和徽章時發生錯誤:`, error);
+        }
     }
 
     /**

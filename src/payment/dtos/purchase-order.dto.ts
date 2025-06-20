@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsNumber, IsDateString, IsObject, Min } from 'class-validator';
+import {
+    IsString,
+    IsOptional,
+    IsNumber,
+    IsDateString,
+    IsObject,
+    Min,
+    IsBoolean,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 /**
@@ -19,6 +27,54 @@ export class CreatePurchaseOrderDto {
     @IsOptional()
     @IsString()
     cancelUrl?: string;
+}
+
+/**
+ * 支付後創建協會Profile DTO
+ */
+export class CreateAssociationProfileFromOrderDto {
+    @IsString()
+    @IsOptional()
+    name?: string; // 可選，允許用戶自定義名稱
+
+    @IsString()
+    @IsOptional()
+    description?: string; // 可選
+
+    @IsBoolean()
+    @IsOptional()
+    isPublic?: boolean = true; // 默認公開
+}
+
+/**
+ * Profile創建選項響應DTO
+ */
+export interface ProfileCreationOptionsResponseDto {
+    order: {
+        id: string;
+        orderNumber: string;
+        status: string;
+        paidAt: Date;
+        membershipStartDate: Date;
+        membershipEndDate: Date;
+    };
+    association: {
+        id: string;
+        name: string;
+        slug: string;
+        logo?: string;
+        description?: string;
+    };
+    user: {
+        id: string;
+        username: string;
+        displayName?: string;
+        hasDefaultProfile: boolean;
+        totalProfiles: number;
+    };
+    canCreateAssociationProfile: boolean;
+    suggestedProfileName: string;
+    suggestedProfileDescription: string;
 }
 
 /**
