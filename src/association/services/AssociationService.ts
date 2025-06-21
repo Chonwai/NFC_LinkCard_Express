@@ -16,14 +16,14 @@ export class AssociationService {
     }
 
     async create(userId: string, dto: CreateFullAssociationDto) {
-        // 檢查用戶是否已有協會
-        const existingAssociation = await this.prisma.association.findUnique({
-            where: { userId },
-        });
-
-        if (existingAssociation) {
-            throw new Error('用戶已擁有協會');
-        }
+        // NOTE: 移除了單協會限制檢查以支持多協會功能
+        // 原有檢查: 檢查用戶是否已有協會
+        // const existingAssociation = await this.prisma.association.findUnique({
+        //     where: { userId },
+        // });
+        // if (existingAssociation) {
+        //     throw new Error('用戶已擁有協會');
+        // }
 
         // 生成唯一的slug
         const slug = await generateAssociationSlug(dto.name);
@@ -43,7 +43,7 @@ export class AssociationService {
                 socialLinks: dto.socialLinks,
                 customization: dto.customization,
                 isPublic: dto.isPublic ?? true,
-                user: { connect: { id: userId } },
+                userId: userId, // 直接設置 userId 而不是使用 connect
             },
         });
     }

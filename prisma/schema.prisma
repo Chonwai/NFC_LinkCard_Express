@@ -35,7 +35,7 @@ model User {
   links                  Link[]
   profiles               Profile[]
   analytics              Analytics[]
-  association            Association?
+  associations           Association[] // 改為支持多協會
   memberOf               AssociationMember[]
   purchaseOrders         PurchaseOrder[]     // 新增：用戶的購買訂單
 
@@ -189,7 +189,7 @@ model Association {
   badgeImage    String? @map("badge_image") // 協會徽章圖片URL
 
   // 關聯
-  userId    String                 @unique @map("user_id")
+  userId    String                 @map("user_id") // 移除 @unique 約束以支持多協會
   user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   members   AssociationMember[]
   leads     AssociationLead[]
