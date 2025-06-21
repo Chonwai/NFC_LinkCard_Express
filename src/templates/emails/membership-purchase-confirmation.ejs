@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>會員購買確認 - <%= associationName %></title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .email-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+        }
+        .success-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .content {
+            padding: 30px;
+        }
+        .purchase-summary {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .detail-row:last-child {
+            border-bottom: none;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .detail-label {
+            color: #6c757d;
+        }
+        .detail-value {
+            font-weight: 500;
+        }
+        .membership-benefits {
+            background-color: #e3f2fd;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .benefits-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+        .benefits-list li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+        .benefits-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: bold;
+        }
+        .cta-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 14px 28px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .support-section {
+            background-color: #fff3cd;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .footer {
+            background-color: #343a40;
+            color: #adb5bd;
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+        }
+        .footer a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .content {
+                padding: 20px;
+            }
+            .detail-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .detail-value {
+                margin-top: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="success-icon">🎉</div>
+            <h1>購買成功！</h1>
+            <p>歡迎加入 <%= associationName %></p>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+            <h2>親愛的 <%= userName %>，</h2>
+            
+            <p>恭喜您成功購買了 <strong><%= associationName %></strong> 的會員資格！您的付款已確認，會員權益即刻生效。</p>
+
+            <!-- Purchase Summary -->
+            <div class="purchase-summary">
+                <h3 style="margin-top: 0; color: #28a745;">📋 購買詳情</h3>
+                <div class="detail-row">
+                    <span class="detail-label">訂單編號：</span>
+                    <span class="detail-value"><%= orderNumber %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">協會名稱：</span>
+                    <span class="detail-value"><%= associationName %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">會員等級：</span>
+                    <span class="detail-value"><%= membershipTier %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">購買日期：</span>
+                    <span class="detail-value"><%= purchaseDate %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">生效日期：</span>
+                    <span class="detail-value"><%= membershipStartDate %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">到期日期：</span>
+                    <span class="detail-value"><%= membershipEndDate %></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">支付金額：</span>
+                    <span class="detail-value"><%= currency %> $<%= amount %></span>
+                </div>
+            </div>
+
+            <!-- Membership Benefits -->
+            <div class="membership-benefits">
+                <h3 style="margin-top: 0; color: #1976d2;">🌟 您的會員權益</h3>
+                <ul class="benefits-list">
+                    <li>獲得專屬協會徽章，展示在您的數字名片上</li>
+                    <li>參與協會專屬活動和聚會</li>
+                    <li>與其他會員建立聯繫和交流</li>
+                    <li>享受會員專屬優惠和服務</li>
+                    <li>訂閱協會最新消息和資訊</li>
+                </ul>
+            </div>
+
+            <!-- Call to Action -->
+            <div class="cta-section">
+                <h3>接下來您可以：</h3>
+                <% if (canCreateProfile) { %>
+                <a href="<%= profileCreationUrl %>" class="btn">
+                    🎨 創建協會專屬名片
+                </a>
+                <% } %>
+                <a href="<%= dashboardUrl %>" class="btn btn-secondary">
+                    📱 查看我的會員資格
+                </a>
+            </div>
+
+            <!-- Support Section -->
+            <div class="support-section">
+                <h4 style="margin-top: 0;">💬 需要幫助？</h4>
+                <p>如果您對會員資格有任何疑問，或需要技術支援，請隨時聯繫我們：</p>
+                <p>
+                    📧 郵件：<a href="mailto:support@linkcard.xyz">support@linkcard.xyz</a><br>
+                    🌐 幫助中心：<a href="<%= helpCenterUrl %>">linkcard.xyz/help</a>
+                </p>
+            </div>
+
+            <p>再次感謝您選擇 LinkCard 和 <%= associationName %>！我們期待為您提供優質的會員體驗。</p>
+            
+            <p>
+                此致<br>
+                <strong>LinkCard 團隊</strong>
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>此郵件由 LinkCard 系統自動發送，請勿直接回覆。</p>
+            <p>
+                © <%= new Date().getFullYear() %> LinkCard. 保留所有權利。 | 
+                <a href="<%= unsubscribeUrl %>">取消訂閱</a> | 
+                <a href="<%= privacyPolicyUrl %>">隱私政策</a>
+            </p>
+            <p>LinkCard - 讓數字名片分享變得簡單而現代化</p>
+        </div>
+    </div>
+</body>
+</html> 

@@ -11,6 +11,7 @@ import {
 import { ApiError } from '../../types/error.types';
 import { ProfileBadgeService } from '../../association/services/ProfileBadgeService';
 import { MemberHistoryService } from '../../association/services/MemberHistoryService';
+import { EmailService } from '../../services/EmailService';
 import { CreateProfileBadgeDto } from '../../association/dtos/profile-badge.dto';
 import * as crypto from 'crypto';
 import { generateRandomChars } from '../../utils/token';
@@ -25,14 +26,17 @@ export class PurchaseOrderService {
     private stripe = StripeConfig.getClient();
     private readonly profileBadgeService: ProfileBadgeService;
     private readonly memberHistoryService: MemberHistoryService;
+    private readonly emailService: EmailService;
 
     constructor(
         profileBadgeService: ProfileBadgeService,
         memberHistoryService: MemberHistoryService,
+        emailService: EmailService,
     ) {
         this.prisma = new PrismaClient();
         this.profileBadgeService = profileBadgeService;
         this.memberHistoryService = memberHistoryService;
+        this.emailService = emailService;
     }
 
     /**
@@ -423,7 +427,104 @@ export class PurchaseOrderService {
         // 🎯 新增：處理用戶 Profile 和協會徽章 (在事務外執行以避免複雜性)
         await this.ensureUserProfileAndBadge(order.userId, order.associationId);
 
+        // 🎯 新增：發送購買確認郵件
+        try {
+            await this.sendPurchaseConfirmationEmail(result);
+        } catch (emailError) {
+            console.error('❌ 發送購買確認郵件失敗:', emailError);
+            // 郵件發送失敗不影響主要業務流程
+        }
+
         return result;
+    }
+
+    /**
+     * 🎯 新增：發送購買確認郵件
+     */
+    private async sendPurchaseConfirmationEmail(order: any) {
+        try {
+            // 獲取用戶信息
+            const user = await this.prisma.user.findUnique({
+                where: { id: order.userId },
+                select: {
+                    email: true,
+                    display_name: true,
+                    username: true,
+                },
+            });
+
+            if (!user) {
+                throw new Error('用戶不存在');
+            }
+
+            // 獲取協會信息
+            const association = await this.prisma.association.findUnique({
+                where: { id: order.associationId },
+                select: {
+                    name: true,
+                },
+            });
+
+            if (!association) {
+                throw new Error('協會不存在');
+            }
+
+            // 檢查用戶是否有Profile（用於判斷是否可以創建Profile）
+            const userProfile = await this.prisma.profile.findFirst({
+                where: { user_id: order.userId, is_default: true },
+            });
+
+            // 🎯 修正：從實際的會員記錄中獲取會員等級
+            const memberRecord = await this.prisma.associationMember.findUnique({
+                where: {
+                    associationId_userId: {
+                        associationId: order.associationId,
+                        userId: order.userId,
+                    },
+                },
+                select: {
+                    membershipTier: true,
+                },
+            });
+
+            // 準備郵件數據
+            const purchaseData = {
+                userName: user.display_name || user.username,
+                associationName: association.name,
+                orderNumber: order.orderNumber,
+                membershipTier:
+                    memberRecord?.membershipTier || order.pricingPlan?.membershipTier || 'STANDARD',
+                purchaseDate:
+                    order.paidAt?.toLocaleDateString('zh-TW') ||
+                    new Date().toLocaleDateString('zh-TW'),
+                membershipStartDate:
+                    order.membershipStartDate?.toLocaleDateString('zh-TW') ||
+                    new Date().toLocaleDateString('zh-TW'),
+                membershipEndDate:
+                    order.membershipEndDate?.toLocaleDateString('zh-TW') ||
+                    new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toLocaleDateString('zh-TW'),
+                amount: order.amount.toString(),
+                currency: order.currency || 'HKD',
+                canCreateProfile: !userProfile, // 沒有Profile的用戶可以創建
+                profileCreationUrl: `${process.env.FRONTEND_URL}/payment/purchase-orders/${order.id}/profile-creation-options`,
+                dashboardUrl: `${process.env.FRONTEND_URL}/dashboard`,
+                helpCenterUrl: `${process.env.FRONTEND_URL}/help`,
+                unsubscribeUrl: `${process.env.FRONTEND_URL}/unsubscribe`,
+                privacyPolicyUrl: `${process.env.FRONTEND_URL}/privacy`,
+            };
+
+            // 發送確認郵件
+            await this.emailService.sendMembershipPurchaseConfirmation(user.email, purchaseData);
+
+            console.log('✅ 購買確認郵件發送成功:', {
+                email: user.email,
+                orderNumber: order.orderNumber,
+                associationName: association.name,
+            });
+        } catch (error) {
+            console.error('❌ 發送購買確認郵件失敗:', error);
+            throw error;
+        }
     }
 
     /**

@@ -214,4 +214,50 @@ export class EmailService {
             templateData,
         );
     }
+
+    /**
+     * 發送會員購買確認郵件
+     * @param email 用戶郵箱
+     * @param purchaseData 購買數據
+     */
+    async sendMembershipPurchaseConfirmation(
+        email: string,
+        purchaseData: {
+            userName: string;
+            associationName: string;
+            orderNumber: string;
+            membershipTier: string;
+            purchaseDate: string;
+            membershipStartDate: string;
+            membershipEndDate: string;
+            amount: string;
+            currency: string;
+            canCreateProfile: boolean;
+            profileCreationUrl?: string;
+            dashboardUrl: string;
+            helpCenterUrl: string;
+            unsubscribeUrl: string;
+            privacyPolicyUrl: string;
+        },
+    ): Promise<void> {
+        const templateData = {
+            ...purchaseData,
+            // 確保所有URL都有默認值
+            profileCreationUrl:
+                purchaseData.profileCreationUrl || `${process.env.FRONTEND_URL}/profile/create`,
+            dashboardUrl: purchaseData.dashboardUrl || `${process.env.FRONTEND_URL}/dashboard`,
+            helpCenterUrl: purchaseData.helpCenterUrl || `${process.env.FRONTEND_URL}/help`,
+            unsubscribeUrl:
+                purchaseData.unsubscribeUrl || `${process.env.FRONTEND_URL}/unsubscribe`,
+            privacyPolicyUrl:
+                purchaseData.privacyPolicyUrl || `${process.env.FRONTEND_URL}/privacy`,
+        };
+
+        return this.sendTemplateEmail(
+            email,
+            `會員購買確認 - ${purchaseData.associationName}`,
+            'membership-purchase-confirmation.ejs',
+            templateData,
+        );
+    }
 }
