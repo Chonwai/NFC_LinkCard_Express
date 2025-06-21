@@ -2,6 +2,9 @@ import { Service } from 'typedi';
 import { PrismaClient } from '@prisma/client';
 import { StripeConfig } from '../config/stripe.config';
 import { PurchaseOrderService } from './PurchaseOrderService';
+import { ProfileBadgeService } from '../../association/services/ProfileBadgeService';
+import { MemberHistoryService } from '../../association/services/MemberHistoryService';
+import { EmailService } from '../../services/EmailService';
 
 /**
  * 支付輪詢服務
@@ -20,9 +23,17 @@ export class PaymentPollingService {
     private pollingInterval: NodeJS.Timeout | null = null;
     private isPolling = false;
 
-    constructor() {
+    constructor(
+        private readonly profileBadgeService: ProfileBadgeService,
+        private readonly memberHistoryService: MemberHistoryService,
+        private readonly emailService: EmailService,
+    ) {
         this.prisma = new PrismaClient();
-        this.purchaseOrderService = new PurchaseOrderService();
+        this.purchaseOrderService = new PurchaseOrderService(
+            this.profileBadgeService,
+            this.memberHistoryService,
+            this.emailService,
+        );
     }
 
     /**
