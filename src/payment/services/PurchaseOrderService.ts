@@ -10,6 +10,7 @@ import {
 } from '../dtos/purchase-order.dto';
 import { ApiError } from '../../types/error.types';
 import { ProfileBadgeService } from '../../association/services/ProfileBadgeService';
+import { MemberHistoryService } from '../../association/services/MemberHistoryService';
 import { CreateProfileBadgeDto } from '../../association/dtos/profile-badge.dto';
 import * as crypto from 'crypto';
 import { generateRandomChars } from '../../utils/token';
@@ -23,10 +24,15 @@ export class PurchaseOrderService {
     private prisma: PrismaClient;
     private stripe = StripeConfig.getClient();
     private readonly profileBadgeService: ProfileBadgeService;
+    private readonly memberHistoryService: MemberHistoryService;
 
-    constructor(profileBadgeService: ProfileBadgeService) {
+    constructor(
+        profileBadgeService: ProfileBadgeService,
+        memberHistoryService: MemberHistoryService,
+    ) {
         this.prisma = new PrismaClient();
         this.profileBadgeService = profileBadgeService;
+        this.memberHistoryService = memberHistoryService;
     }
 
     /**
@@ -336,8 +342,17 @@ export class PurchaseOrderService {
                 },
             });
 
+            let membershipHistoryData: {
+                memberId: string;
+                previousStatus: MembershipStatus;
+                newStatus: MembershipStatus;
+                reason: string;
+            };
+
             if (existingMember) {
                 // 更新現有會員記錄
+                const previousStatus = existingMember.membershipStatus;
+
                 await tx.associationMember.update({
                     where: { id: existingMember.id },
                     data: {
@@ -354,9 +369,17 @@ export class PurchaseOrderService {
                         },
                     },
                 });
+
+                // 準備會員歷史記錄數據（現有會員更新）
+                membershipHistoryData = {
+                    memberId: existingMember.id,
+                    previousStatus: previousStatus,
+                    newStatus: MembershipStatus.ACTIVE,
+                    reason: `用戶通過付費購買會員資格，訂單號：${order.orderNumber}，金額：${order.currency} ${order.amount}`,
+                };
             } else {
                 // 創建新的會員記錄
-                await tx.associationMember.create({
+                const newMember = await tx.associationMember.create({
                     data: {
                         associationId: order.associationId,
                         userId: order.userId,
@@ -373,7 +396,26 @@ export class PurchaseOrderService {
                         },
                     },
                 });
+
+                // 準備會員歷史記錄數據（新會員創建）
+                membershipHistoryData = {
+                    memberId: newMember.id,
+                    previousStatus: MembershipStatus.PENDING,
+                    newStatus: MembershipStatus.ACTIVE,
+                    reason: `用戶通過付費購買成為新會員，訂單號：${order.orderNumber}，金額：${order.currency} ${order.amount}`,
+                };
             }
+
+            // 🎯 新增：記錄會員狀態變更歷史
+            await tx.membershipHistory.create({
+                data: {
+                    association_member_id: membershipHistoryData.memberId,
+                    previous_status: membershipHistoryData.previousStatus,
+                    new_status: membershipHistoryData.newStatus,
+                    changed_by: order.userId, // 付費用戶自己
+                    reason: membershipHistoryData.reason,
+                },
+            });
 
             return updatedOrder;
         });
@@ -473,6 +515,65 @@ export class PurchaseOrderService {
             where: { id },
             data,
         });
+    }
+
+    /**
+     * 🎯 主動同步 Stripe 支付狀態（解決 Webhook 時序問題）
+     *
+     * 當檢測到訂單狀態為 PENDING 但用戶已經跳轉回成功頁面時，
+     * 主動查詢 Stripe 的真實狀態並同步到數據庫
+     */
+    async syncStripePaymentStatus(sessionId: string) {
+        try {
+            console.log('🔍 開始同步 Stripe 支付狀態:', { sessionId });
+
+            // 1. 查詢 Stripe Session 的真實狀態
+            const stripeSession = await this.stripe.checkout.sessions.retrieve(sessionId);
+
+            console.log('📊 Stripe Session 狀態:', {
+                sessionId,
+                paymentStatus: stripeSession.payment_status,
+                status: stripeSession.status,
+            });
+
+            // 2. 查找對應的訂單
+            const order = await this.getOrderBySessionId(sessionId);
+
+            // 3. 檢查是否需要同步
+            if (order.status === 'PENDING' && stripeSession.payment_status === 'paid') {
+                console.log('💰 檢測到支付成功但狀態未同步，開始處理...');
+
+                // 4. 手動觸發支付成功邏輯
+                const updatedOrder = await this.handlePaymentSuccess(order.id, {
+                    sessionId: stripeSession.id,
+                    customerId: stripeSession.customer,
+                    subscriptionId: stripeSession.subscription,
+                    paymentStatus: stripeSession.payment_status,
+                    amountTotal: stripeSession.amount_total,
+                    currency: stripeSession.currency,
+                    syncedAt: new Date().toISOString(),
+                    syncReason: 'WEBHOOK_TIMING_ISSUE',
+                });
+
+                console.log('✅ 支付狀態同步完成:', {
+                    orderId: updatedOrder.id,
+                    oldStatus: 'PENDING',
+                    newStatus: updatedOrder.status,
+                });
+
+                // 5. 重新查詢完整的訂單信息
+                return await this.getOrderBySessionId(sessionId);
+            } else if (order.status === 'PAID') {
+                console.log('ℹ️ 訂單狀態已經是 PAID，無需同步');
+                return order;
+            } else {
+                console.log('ℹ️ Stripe 支付狀態未完成，保持 PENDING 狀態');
+                return null;
+            }
+        } catch (error) {
+            console.error('❌ 同步 Stripe 支付狀態失敗:', error);
+            throw error;
+        }
     }
 
     /**

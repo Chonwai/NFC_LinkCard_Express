@@ -168,6 +168,26 @@ export class PurchaseOrderController {
                 );
             }
 
+            // 🎯 關鍵修復：處理 Webhook 時序問題
+            // 如果訂單狀態仍然是 PENDING，主動查詢 Stripe 真實狀態並同步
+            if (order.status === 'PENDING') {
+                console.log('⚡ 檢測到 PENDING 狀態，主動同步 Stripe 支付狀態...');
+                try {
+                    const updatedOrder =
+                        await this.purchaseOrderService.syncStripePaymentStatus(sessionId);
+                    if (updatedOrder) {
+                        order = updatedOrder;
+                        console.log('✅ 支付狀態同步成功:', {
+                            orderId: order.id,
+                            newStatus: order.status,
+                        });
+                    }
+                } catch (syncError) {
+                    console.warn('⚠️ 同步 Stripe 支付狀態失敗:', syncError);
+                    // 繼續使用原有的訂單狀態，不中斷流程
+                }
+            }
+
             // 查詢會員狀態
             let membership = null;
             if (order.status === 'PAID') {
