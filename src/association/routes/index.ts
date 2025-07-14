@@ -8,6 +8,7 @@ import { AnalyticsController } from '../controllers/AnalyticsController';
 import { AffiliationController } from '../controllers/AffiliationController';
 import { MemberInvitationController } from '../controllers/MemberInvitationController';
 import { ProfileBadgeController } from '../controllers/ProfileBadgeController';
+import { ProfilePrefillController } from '../controllers/ProfilePrefillController';
 import associationPricingPlanRoutes from '../../payment/routes/association-pricing-plan.routes';
 import multer from 'multer';
 import { AssociationPricingPlanController } from '../../payment/controllers/AssociationPricingPlanController';
@@ -38,6 +39,7 @@ const analyticsController = Container.get(AnalyticsController);
 const affiliationController = Container.get(AffiliationController);
 const memberInvitationController = Container.get(MemberInvitationController);
 const profileBadgeController = Container.get(ProfileBadgeController);
+const profilePrefillController = Container.get(ProfilePrefillController);
 const associationPricingPlanController = Container.get(AssociationPricingPlanController);
 const publicPricingPlanController = Container.get(PublicPricingPlanController);
 
@@ -114,9 +116,28 @@ router.post('/invitations/respond', authMiddleware, memberInvitationController.r
 // 潛在客戶路由
 router.post('/associations/:id/leads', leadController.createLead); // 公開 API
 router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
+router.get('/associations/:id/leads/filter', authMiddleware, leadController.getLeadsWithFilter); // 🆕 增強版過濾查詢
+router.get('/associations/:id/leads/stats', authMiddleware, leadController.getLeadStats); // 🆕 Lead統計分析
 router.get('/associations/:id/leads/:leadId', authMiddleware, leadController.getLeadById);
 router.put('/associations/:id/leads/:leadId', authMiddleware, leadController.updateLead);
 router.delete('/associations/:id/leads/:leadId', authMiddleware, leadController.deleteLead);
+
+// 🆕 Profile預填和Lead關聯功能
+router.get(
+    '/associations/:associationId/profile-prefill/:userId',
+    authMiddleware,
+    profilePrefillController.getProfilePrefillOptions,
+);
+router.post(
+    '/associations/:associationId/profiles/with-lead-data',
+    authMiddleware,
+    profilePrefillController.createProfileWithLeadData,
+);
+router.get(
+    '/associations/:associationId/users/:userId/leads',
+    authMiddleware,
+    profilePrefillController.getUserLeadsForAssociation,
+);
 
 // 分析路由
 router.post('/analytics/event', analyticsController.trackEvent);
@@ -228,10 +249,7 @@ router.post(
     memberController.checkExpiredMemberships,
 );
 
-// 潛在客戶路由
-router.post('/associations/:id/leads', leadController.createLead);
-router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
-router.patch('/associations/leads/:id/status', authMiddleware, leadController.updateLead);
+// (已移除重複的潛在客戶路由定義 - 主要路由定義在第116-122行)
 
 // 添加會員資格檢查路由
 router.get(

@@ -3,6 +3,8 @@ import { AuthService } from '../services/AuthService';
 import { ApiResponse } from '../utils/apiResponse';
 import { plainToClass } from 'class-transformer';
 import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from '../dtos/auth.dto';
+import { RegisterWithLeadDto } from '../auth/dtos/register-with-lead.dto';
+import { RegisterWithLeadService } from '../auth/services/RegisterWithLeadService';
 import { ApiError } from '../types/error.types';
 import { Service } from 'typedi';
 import { EmailService } from '../services/EmailService';
@@ -16,6 +18,7 @@ export class AuthController {
         private readonly emailService: EmailService,
         private readonly userService: UserService,
         private readonly authService: AuthService,
+        private readonly registerWithLeadService: RegisterWithLeadService,
     ) {}
 
     register = async (req: Request, res: Response) => {
@@ -41,6 +44,42 @@ export class AuthController {
                 res,
                 'Registration failed',
                 'REGISTER_ERROR',
+                apiError.message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 🆕 一站式註冊+Lead收集API
+     * 用於用戶有購買意向時的註冊流程
+     */
+    registerWithLead = async (req: Request, res: Response) => {
+        try {
+            const registerWithLeadDto = plainToClass(RegisterWithLeadDto, req.body);
+            const errors = await validate(registerWithLeadDto);
+
+            if (errors.length > 0) {
+                return ApiResponse.error(res, '驗證錯誤', 'VALIDATION_ERROR', errors, 400);
+            }
+
+            const result = await this.registerWithLeadService.registerWithLead(registerWithLeadDto);
+
+            // 如果返回的是Response類型，直接返回
+            if ('user' in result) {
+                return ApiResponse.success(res, {
+                    message: '註冊成功！請檢查您的郵箱驗證帳戶，然後可以繼續購買流程。',
+                    data: result,
+                });
+            }
+
+            return result;
+        } catch (error: unknown) {
+            const apiError = error as ApiError;
+            return ApiResponse.error(
+                res,
+                '註冊失敗',
+                'REGISTER_WITH_LEAD_ERROR',
                 apiError.message,
                 500,
             );

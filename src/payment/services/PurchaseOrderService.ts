@@ -427,6 +427,9 @@ export class PurchaseOrderService {
         // 🎯 新增：處理用戶 Profile 和協會徽章 (在事務外執行以避免複雜性)
         await this.ensureUserProfileAndBadge(order.userId, order.associationId);
 
+        // 🆕 新增：更新相關Lead狀態為已轉換
+        await this.updateAssociatedLeadStatus(purchaseOrderId, order.userId, order.associationId);
+
         // 🎯 新增：發送購買確認郵件
         try {
             await this.sendPurchaseConfirmationEmail(result);
@@ -836,6 +839,96 @@ export class PurchaseOrderService {
             }
         } catch (error) {
             console.error('處理訂閱刪除事件失敗:', error);
+        }
+    }
+
+    /**
+     * 🆕 更新關聯Lead狀態為已轉換
+     * 在支付成功後調用，將購買意向Lead標記為已轉換
+     */
+    private async updateAssociatedLeadStatus(
+        purchaseOrderId: string,
+        userId: string,
+        associationId: string,
+    ) {
+        try {
+            // 查找與此訂單和用戶相關的Lead記錄
+            const associatedLead = await this.prisma.associationLead.findFirst({
+                where: {
+                    purchaseOrderId: purchaseOrderId,
+                    userId: userId,
+                    associationId: associationId,
+                    source: 'PURCHASE_INTENT', // 只更新購買意向Lead
+                },
+            });
+
+            if (associatedLead) {
+                // 更新Lead狀態為已轉換
+                await this.prisma.associationLead.update({
+                    where: { id: associatedLead.id },
+                    data: {
+                        status: 'CONVERTED',
+                        metadata: {
+                            ...((associatedLead.metadata as any) || {}),
+                            conversion: {
+                                convertedAt: new Date().toISOString(),
+                                conversionType: 'PAID_MEMBERSHIP',
+                                purchaseOrderId: purchaseOrderId,
+                                amount: null, // 將在後續查詢中填充
+                            },
+                        },
+                    },
+                });
+
+                console.log(
+                    `✅ Lead已轉換：Lead ID ${associatedLead.id} -> 訂單 ${purchaseOrderId}`,
+                );
+            } else {
+                // 查找任何與用戶和協會相關的購買意向Lead（作為備用）
+                const fallbackLead = await this.prisma.associationLead.findFirst({
+                    where: {
+                        userId: userId,
+                        associationId: associationId,
+                        source: 'PURCHASE_INTENT',
+                        status: {
+                            in: ['NEW', 'CONTACTED', 'QUALIFIED'], // 未轉換的狀態
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'desc', // 最新的Lead
+                    },
+                });
+
+                if (fallbackLead) {
+                    await this.prisma.associationLead.update({
+                        where: { id: fallbackLead.id },
+                        data: {
+                            status: 'CONVERTED',
+                            purchaseOrderId: purchaseOrderId,
+                            metadata: {
+                                ...((fallbackLead.metadata as any) || {}),
+                                conversion: {
+                                    convertedAt: new Date().toISOString(),
+                                    conversionType: 'PAID_MEMBERSHIP',
+                                    purchaseOrderId: purchaseOrderId,
+                                    note: 'Converted via fallback matching (user + association)',
+                                },
+                            },
+                        },
+                    });
+
+                    console.log(
+                        `✅ Lead已轉換（備用匹配）：Lead ID ${fallbackLead.id} -> 訂單 ${purchaseOrderId}`,
+                    );
+                } else {
+                    console.log(
+                        `ℹ️ 未找到相關的購買意向Lead：用戶 ${userId}，協會 ${associationId}，訂單 ${purchaseOrderId}`,
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('❌ 更新Lead狀態失敗:', error);
+            // Lead狀態更新失敗不應該影響主要支付流程
         }
     }
 }

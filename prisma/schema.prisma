@@ -38,6 +38,7 @@ model User {
   associations           Association[] // 改為支持多協會
   memberOf               AssociationMember[]
   purchaseOrders         PurchaseOrder[]     // 新增：用戶的購買訂單
+  associationLeads       AssociationLead[]   // 🆕 新增：用戶相關的Lead記錄
 
   @@map("users")
 }
@@ -246,19 +247,41 @@ model AssociationLead {
   associationId String      @map("association_id")
   association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
+  // 基本Lead信息
   firstName    String  @map("first_name")
   lastName     String  @map("last_name")
   email        String
   phone        String?
   organization String?
   message      String?
-  status       String  @default("NEW") // NEW, CONTACTED, CONVERTED, REJECTED
+  status       String  @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, REJECTED
+
+  // 🆕 新增字段：來源追蹤和優先級管理
+  source           String?  @default("WEBSITE_CONTACT") // "PURCHASE_INTENT" | "WEBSITE_CONTACT" | "EVENT_REGISTRATION" | "REFERRAL" | "OTHER"
+  priority         String?  @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  
+  // 🆕 關聯字段
+  purchaseOrderId  String?  @map("purchase_order_id") // 關聯的購買訂單
+  userId           String?  @map("user_id") // 關聯的用戶（如果已註冊）
+  
+  // 🆕 擴展元數據 - 存儲購買上下文和其他靈活數據
+  metadata         Json?    // 存儲購買上下文、表單來源等信息
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // 🆕 新增關聯
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([associationId])
   @@index([email])
+  @@index([source]) // 🆕 來源索引，用於快速過濾
+  @@index([priority]) // 🆕 優先級索引，用於排序
+  @@index([status]) // 🆕 狀態索引，用於狀態過濾
+  @@index([purchaseOrderId]) // 🆕 訂單關聯索引
+  @@index([userId]) // 🆕 用戶關聯索引
+  @@index([createdAt]) // 🆕 創建時間索引，用於時間範圍查詢
   @@map("association_leads") // Map to snake_case plural
 }
 
@@ -377,6 +400,9 @@ model PurchaseOrder {
   pricingPlanId        String              @map("pricing_plan_id")
   pricingPlan          PricingPlan         @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
   
+  // 🆕 Lead關聯 - 支持購買前Lead收集
+  leadId               String?             @map("lead_id") // 關聯的Lead（如果通過Lead流程購買）
+  
   // 訂單信息
   orderNumber          String              @unique @map("order_number") // 訂單號
   amount               Decimal             @db.Decimal(10, 2) // 金額
@@ -395,9 +421,13 @@ model PurchaseOrder {
   updatedAt            DateTime            @updatedAt @map("updated_at")
   paidAt               DateTime?           @map("paid_at") // 支付完成時間
 
+  // 🆕 Lead關聯
+  leads                AssociationLead[]   // 一個訂單可能關聯多個Lead（主要是一個，但保持靈活性）
+
   @@index([associationId])
   @@index([userId])
   @@index([status])
   @@index([orderNumber])
+  @@index([leadId]) // 🆕 Lead關聯索引
   @@map("purchase_orders")
 }

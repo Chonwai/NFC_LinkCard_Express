@@ -95,6 +95,97 @@ export class LeadController {
     };
 
     /**
+     * 🆕 獲取協會的Lead列表（增強版過濾功能）
+     * @param req 請求對象
+     * @param res 響應對象
+     */
+    getLeadsWithFilter = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId } = req.params;
+            const userId = req.user?.id;
+
+            // 檢查權限
+            const canManage = await this.leadService.canManageLeads(
+                associationId,
+                userId as string,
+            );
+            if (!canManage) {
+                return ApiResponse.error(
+                    res,
+                    '無權訪問潛在客戶數據',
+                    'PERMISSION_DENIED',
+                    null,
+                    403,
+                );
+            }
+
+            // 獲取查詢參數
+            const filters = {
+                source: req.query.source as string,
+                status: req.query.status as string,
+                priority: req.query.priority as string,
+                sortBy: req.query.sortBy as 'createdAt' | 'priority' | 'status',
+                sortOrder: req.query.sortOrder as 'asc' | 'desc',
+                page: parseInt(req.query.page as string) || 1,
+                limit: parseInt(req.query.limit as string) || 10,
+            };
+
+            // 獲取過濾的Lead列表
+            const result = await this.leadService.getLeadsWithFilter(associationId, filters);
+
+            return ApiResponse.success(res, result);
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                '獲取Lead列表失敗',
+                'GET_LEADS_WITH_FILTER_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
+
+    /**
+     * 🆕 獲取Lead統計信息
+     * @param req 請求對象
+     * @param res 響應對象
+     */
+    getLeadStats = async (req: Request, res: Response) => {
+        try {
+            const { id: associationId } = req.params;
+            const userId = req.user?.id;
+
+            // 檢查權限
+            const canManage = await this.leadService.canManageLeads(
+                associationId,
+                userId as string,
+            );
+            if (!canManage) {
+                return ApiResponse.error(
+                    res,
+                    '無權訪問潛在客戶數據',
+                    'PERMISSION_DENIED',
+                    null,
+                    403,
+                );
+            }
+
+            // 獲取Lead統計信息
+            const stats = await this.leadService.getLeadStats(associationId);
+
+            return ApiResponse.success(res, { stats });
+        } catch (error: any) {
+            return ApiResponse.error(
+                res,
+                '獲取Lead統計信息失敗',
+                'GET_LEAD_STATS_ERROR',
+                error.message,
+                500,
+            );
+        }
+    };
+
+    /**
      * 獲取單個潛在客戶詳情
      * 需要管理員權限
      * @param req 請求對象
