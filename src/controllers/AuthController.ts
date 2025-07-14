@@ -67,9 +67,13 @@ export class AuthController {
 
             // 如果返回的是Response類型，直接返回
             if ('user' in result) {
+                // ✅ 標準化響應結構 - 直接將各個數據字段放在 data 層下
                 return ApiResponse.success(res, {
                     message: '註冊成功！請檢查您的郵箱驗證帳戶，然後可以繼續購買流程。',
-                    data: result,
+                    user: result.user,
+                    lead: result.lead,
+                    token: result.token,
+                    nextStep: result.nextStep,
                 });
             }
 

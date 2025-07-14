@@ -36,141 +36,165 @@ export class RegisterWithLeadService {
     async registerWithLead(
         dto: RegisterWithLeadDto,
     ): Promise<RegisterWithLeadResponseDto | Response> {
-        // 1. 檢查用戶是否已存在
-        const existingUser = await prisma.user.findFirst({
-            where: {
-                OR: [{ email: dto.user.email }, { username: dto.user.username }],
-            },
-        });
+        try {
+            console.log('開始註冊流程，數據:', JSON.stringify(dto, null, 2));
 
-        if (existingUser) {
-            throw new Error('郵箱或用戶名已被使用');
-        }
-
-        // 2. 檢查協會是否存在
-        const association = await prisma.association.findUnique({
-            where: { id: dto.purchaseContext.associationId },
-        });
-
-        if (!association) {
-            throw new Error('協會不存在');
-        }
-
-        // 3. 檢查定價方案是否存在和有效
-        const pricingPlan = await prisma.pricingPlan.findUnique({
-            where: { id: dto.purchaseContext.pricingPlanId },
-        });
-
-        if (!pricingPlan || !pricingPlan.isActive) {
-            throw new Error('定價方案不存在或已停用');
-        }
-
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-        const hashedPassword = await bcrypt.hash(dto.user.password, 10);
-
-        // 4. 事務處理：創建用戶、Profile和Lead
-        const result = await prisma.$transaction(
-            async (tx) => {
-                // 4.1 創建用戶
-                const user = await tx.user.create({
-                    data: {
-                        username: dto.user.username,
-                        email: dto.user.email,
-                        password: hashedPassword,
-                        display_name: dto.user.display_name,
-                        verification_token: verificationToken,
-                        is_verified: false,
-                        verified_at: null,
-                    },
-                });
-
-                // 4.2 創建默認Profile
-                const defaultProfile = await tx.profile.create({
-                    data: {
-                        name: user.display_name || user.username,
-                        slug: await generateSlug(user.username),
-                        user_id: user.id,
-                        is_default: true,
-                        description: `${user.username}的默認Profile`,
-                    },
-                });
-
-                // 4.3 創建購買意向Lead
-                const lead = await tx.associationLead.create({
-                    data: {
-                        firstName: dto.lead.firstName,
-                        lastName: dto.lead.lastName,
-                        email: dto.user.email, // 使用用戶註冊的郵箱
-                        phone: dto.lead.phone,
-                        organization: dto.lead.organization,
-                        message: dto.lead.message,
-                        associationId: dto.purchaseContext.associationId,
-                        status: LeadStatus.NEW,
-                        source: LeadSource.PURCHASE_INTENT,
-                        priority: LeadPriority.HIGH,
-                        userId: user.id,
-                        metadata: {
-                            purchaseContext: {
-                                pricingPlanId: dto.purchaseContext.pricingPlanId,
-                                planName: pricingPlan.displayName,
-                                amount: pricingPlan.price.toNumber(),
-                                currency: pricingPlan.currency,
-                            },
-                            userRegistration: {
-                                registeredAt: new Date().toISOString(),
-                                verificationToken: verificationToken,
-                            },
-                            formSource: 'PURCHASE_REGISTRATION_MODAL',
-                        },
-                    },
-                });
-
-                return {
-                    user,
-                    profile: defaultProfile,
-                    lead,
-                    pricingPlan,
-                };
-            },
-            {
-                timeout: 30000, // 30秒超時
-            },
-        );
-
-        // 5. 發送驗證郵件（異步處理，不阻塞響應）
-        this.emailService
-            .sendVerificationEmail(result.user.email, verificationToken)
-            .catch((error) => {
-                console.error('發送驗證郵件失敗:', error);
-                // TODO: 記錄到日誌系統
+            // 1. 檢查用戶是否已存在
+            const existingUser = await prisma.user.findFirst({
+                where: {
+                    OR: [{ email: dto.user.email }, { username: dto.user.username }],
+                },
             });
 
-        // 6. 生成JWT token
-        const token = this.authService.generateToken(result.user);
+            if (existingUser) {
+                throw new Error('郵箱或用戶名已被使用');
+            }
 
-        // 7. 構建響應
-        const response: RegisterWithLeadResponseDto = {
-            user: {
-                id: result.user.id,
-                username: result.user.username,
-                email: result.user.email,
-                isVerified: result.user.is_verified,
-                displayName: result.user.display_name || undefined,
-            },
-            lead: {
-                id: result.lead.id,
-                source: result.lead.source || LeadSource.PURCHASE_INTENT,
-                status: result.lead.status,
-                priority: result.lead.priority || LeadPriority.HIGH,
-            },
-            token,
-            nextStep: {
-                action: 'PROCEED_TO_PAYMENT',
-                // checkoutUrl將在創建購買訂單時生成
-            },
-        };
+            // 2. 檢查協會是否存在
+            const association = await prisma.association.findUnique({
+                where: { id: dto.purchaseContext.associationId },
+            });
 
-        return response;
+            if (!association) {
+                throw new Error('協會不存在');
+            }
+
+            // 3. 檢查定價方案是否存在和有效
+            const pricingPlan = await prisma.pricingPlan.findUnique({
+                where: { id: dto.purchaseContext.pricingPlanId },
+            });
+
+            if (!pricingPlan || !pricingPlan.isActive) {
+                throw new Error('定價方案不存在或已停用');
+            }
+
+            const verificationToken = crypto.randomBytes(32).toString('hex');
+            const hashedPassword = await bcrypt.hash(dto.user.password, 10);
+
+            console.log('準備開始事務處理...');
+
+            // 4. 事務處理：創建用戶、Profile和Lead
+            const result = await prisma.$transaction(
+                async (tx) => {
+                    // 4.1 創建用戶
+                    const user = await tx.user.create({
+                        data: {
+                            username: dto.user.username,
+                            email: dto.user.email,
+                            password: hashedPassword,
+                            display_name: dto.user.display_name,
+                            verification_token: verificationToken,
+                            is_verified: false,
+                            verified_at: null,
+                        },
+                        select: {
+                            id: true,
+                            username: true,
+                            email: true,
+                            display_name: true,
+                            is_verified: true,
+                            created_at: true,
+                            updated_at: true,
+                        },
+                    });
+
+                    // 4.2 創建默認Profile
+                    const defaultProfile = await tx.profile.create({
+                        data: {
+                            name: user.display_name || user.username,
+                            slug: await generateSlug(user.username),
+                            user_id: user.id,
+                            is_default: true,
+                            description: `${user.username}的默認Profile`,
+                        },
+                    });
+
+                    // 4.3 創建購買意向Lead
+                    const lead = await tx.associationLead.create({
+                        data: {
+                            firstName: dto.lead.firstName,
+                            lastName: dto.lead.lastName,
+                            email: dto.user.email, // 使用用戶註冊的郵箱
+                            phone: dto.lead.phone,
+                            organization: dto.lead.organization,
+                            message: dto.lead.message,
+                            associationId: dto.purchaseContext.associationId,
+                            status: 'NEW', // 使用字符串而非枚舉
+                            source: 'PURCHASE_INTENT', // 使用字符串而非枚舉
+                            priority: 'HIGH', // 使用字符串而非枚舉
+                            userId: user.id,
+                            metadata: {
+                                purchaseContext: {
+                                    pricingPlanId: dto.purchaseContext.pricingPlanId,
+                                    planName:
+                                        dto.purchaseContext.planName || pricingPlan.displayName,
+                                    amount: dto.purchaseContext.amount || Number(pricingPlan.price),
+                                    currency: dto.purchaseContext.currency || pricingPlan.currency,
+                                },
+                                userRegistration: {
+                                    registeredAt: new Date().toISOString(),
+                                    verificationToken: verificationToken,
+                                },
+                                formSource: 'PURCHASE_REGISTRATION_MODAL',
+                            },
+                        },
+                    });
+
+                    return {
+                        user,
+                        profile: defaultProfile,
+                        lead,
+                        pricingPlan,
+                    };
+                },
+                {
+                    timeout: 30000, // 30秒超時
+                },
+            );
+
+            // 5. 檢查事務結果
+            if (!result.user || !result.lead) {
+                throw new Error('註冊過程中發生錯誤，請聯繫客服或稍後再試。');
+            }
+
+            // 6. 發送驗證郵件（異步處理，不阻塞響應）
+            this.emailService
+                .sendVerificationEmail(result.user.email, verificationToken)
+                .catch((error) => {
+                    console.error('發送驗證郵件失敗:', error);
+                    // TODO: 記錄到日誌系統
+                });
+
+            // 7. 生成JWT token
+            const token = this.authService.generateToken(result.user);
+
+            // 8. 構建響應
+            const response: RegisterWithLeadResponseDto = {
+                user: {
+                    id: result.user.id,
+                    username: result.user.username,
+                    email: result.user.email,
+                    isVerified: result.user.is_verified,
+                    displayName: result.user.display_name || undefined,
+                },
+                lead: {
+                    id: result.lead.id,
+                    source: result.lead.source || 'PURCHASE_INTENT',
+                    status: result.lead.status,
+                    priority: result.lead.priority || 'HIGH',
+                },
+                token,
+                nextStep: {
+                    action: 'PROCEED_TO_PAYMENT',
+                    // checkoutUrl將在創建購買訂單時生成
+                },
+            };
+
+            return response;
+        } catch (error) {
+            console.error('註冊流程錯誤:', error);
+            throw error;
+        }
     }
 
     /**

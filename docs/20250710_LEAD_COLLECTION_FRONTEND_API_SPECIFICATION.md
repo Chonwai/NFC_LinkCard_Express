@@ -125,10 +125,10 @@ const submitContactForm = async (formData) => {
 {
   // 用戶註冊資訊
   user: {
-    username: string;
+  username: string;
     email: string;
-    password: string;
-    display_name?: string;
+  password: string;
+  display_name?: string;
   };
   
   // Lead資訊
@@ -139,7 +139,7 @@ const submitContactForm = async (formData) => {
     organization?: string;
     message?: string;
   };
-  
+    
   // 購買上下文
   purchaseContext: {
     associationId: string;
@@ -189,9 +189,9 @@ const handlePurchaseRegistration = async (formData) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         user: {
-          username: formData.username,
+        username: formData.username,
           email: formData.email,
-          password: formData.password,
+        password: formData.password,
           display_name: formData.displayName
         },
         lead: {
@@ -201,7 +201,7 @@ const handlePurchaseRegistration = async (formData) => {
           organization: formData.company,
           message: formData.requirements
         },
-        purchaseContext: {
+          purchaseContext: {
           associationId: currentAssociation.id,
           pricingPlanId: selectedPlan.id,
           planName: selectedPlan.name,
@@ -735,7 +735,7 @@ const LeadForm = ({ associationId, onSuccess }) => {
   return (
     <form onSubmit={handleSubmit} className="lead-form">
       <div className="form-row">
-        <input
+      <input
           type="text"
           placeholder="名字"
           value={formData.firstName}
@@ -749,7 +749,7 @@ const LeadForm = ({ associationId, onSuccess }) => {
           onChange={(e) => setFormData({...formData, lastName: e.target.value})}
           required
         />
-      </div>
+        </div>
       
       <input
         type="email"
@@ -836,37 +836,37 @@ const LeadManagement = ({ associationId }) => {
       {loading ? (
         <div>載入中...</div>
       ) : (
-        <table className="lead-table">
-          <thead>
-            <tr>
-              <th>姓名</th>
-              <th>郵箱</th>
-              <th>公司</th>
-              <th>來源</th>
-              <th>狀態</th>
-              <th>優先級</th>
-              <th>創建時間</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leads.map(lead => (
+      <table className="lead-table">
+        <thead>
+          <tr>
+            <th>姓名</th>
+            <th>郵箱</th>
+            <th>公司</th>
+            <th>來源</th>
+            <th>狀態</th>
+            <th>優先級</th>
+            <th>創建時間</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leads.map(lead => (
               <tr key={lead.id}>
-                <td>{`${lead.firstName} ${lead.lastName}`}</td>
-                <td>{lead.email}</td>
+              <td>{`${lead.firstName} ${lead.lastName}`}</td>
+              <td>{lead.email}</td>
                 <td>{lead.organization || '-'}</td>
                 <td>{lead.source}</td>
                 <td>{lead.status}</td>
                 <td>{lead.priority}</td>
                 <td>{new Date(lead.createdAt).toLocaleDateString()}</td>
-                <td>
+              <td>
                   <button onClick={() => handleEditLead(lead)}>編輯</button>
                   <button onClick={() => handleDeleteLead(lead.id)}>刪除</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       )}
       
       {/* 分頁 */}
