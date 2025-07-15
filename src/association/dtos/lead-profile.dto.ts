@@ -35,10 +35,11 @@ export class CreateAssociationProfileWithLeadDto {
     isPublic?: boolean = true; // 是否公開
 
     @IsUUID()
-    leadId: string; // 關聯的Lead ID
+    @IsOptional()
+    leadId?: string; // 關聯的Lead ID（可選，如果不提供則根據orderId自動查找）
 
     @IsUUID()
-    orderId: string; // 關聯的訂單ID（用於驗證）
+    orderId: string; // 關聯的訂單ID（必需）
 
     @IsObject()
     @IsOptional()
@@ -107,6 +108,20 @@ export class ProfileCreationResponseDto {
         id: string;
         isVisible: boolean;
         displayMode: string;
+    };
+    links?: {
+        id: string;
+        title: string;
+        url: string;
+        type: string;
+        platform: string | null;
+        isActive: boolean;
+        displayOrder: number;
+        createdFrom: string;
+    }[];
+    summary?: {
+        linksCreated: number;
+        linkTypes: (string | null)[];
     };
     nextStep: {
         action: 'VIEW_PROFILE' | 'EDIT_PROFILE' | 'DASHBOARD';

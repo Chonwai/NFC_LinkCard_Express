@@ -6,12 +6,14 @@ import prisma from '../../lib/prisma';
 import { AuthService } from '../../services/AuthService';
 import { LeadService } from '../../association/services/LeadService';
 import { EmailService } from '../../services/EmailService';
+import { PurchaseIntentDataService } from './PurchaseIntentDataService';
 import { generateSlug } from '../../utils/slugGenerator';
 import { ErrorHandler } from '../../utils/ErrorHandler';
 import {
     RegisterWithLeadDto,
     RegisterWithLeadResponseDto,
     CreatePurchaseOrderWithLeadDto,
+    CreatePurchaseIntentDataDto,
 } from '../dtos/register-with-lead.dto';
 import { LeadSource, LeadPriority, LeadStatus } from '../../association/dtos/lead.dto';
 
@@ -21,6 +23,7 @@ export class RegisterWithLeadService {
         private authService: AuthService,
         private leadService: LeadService,
         private emailService: EmailService,
+        private purchaseIntentDataService: PurchaseIntentDataService, // 🆕 新增
     ) {}
 
     /**
@@ -109,8 +112,11 @@ export class RegisterWithLeadService {
                         },
                     });
 
-                    // 4.3 創建購買意向Lead
-                    const lead = await tx.associationLead.create({
+                    // 4.3 🆕 創建購買意向數據（替代原有的Lead創建）
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + 30); // 30天後過期
+
+                    const purchaseIntentData = await tx.purchaseIntentData.create({
                         data: {
                             firstName: dto.lead.firstName,
                             lastName: dto.lead.lastName,
@@ -119,31 +125,48 @@ export class RegisterWithLeadService {
                             organization: dto.lead.organization,
                             message: dto.lead.message,
                             associationId: dto.purchaseContext.associationId,
-                            status: 'NEW', // 使用字符串而非枚舉
-                            source: 'PURCHASE_INTENT', // 使用字符串而非枚舉
-                            priority: 'HIGH', // 使用字符串而非枚舉
                             userId: user.id,
-                            metadata: {
-                                purchaseContext: {
-                                    pricingPlanId: dto.purchaseContext.pricingPlanId,
-                                    planName:
-                                        dto.purchaseContext.planName || pricingPlan.displayName,
-                                    amount: dto.purchaseContext.amount || Number(pricingPlan.price),
-                                    currency: dto.purchaseContext.currency || pricingPlan.currency,
-                                },
+                            status: 'PENDING',
+                            expiresAt, // 🆕 添加過期時間
+                            autoCreateProfile: true,
+                            purchaseContext: {
+                                pricingPlanId: dto.purchaseContext.pricingPlanId,
+                                planName: dto.purchaseContext.planName || pricingPlan.displayName,
+                                amount: dto.purchaseContext.amount || Number(pricingPlan.price),
+                                currency: dto.purchaseContext.currency || pricingPlan.currency,
+                            },
+                            profileSettings: {
+                                formSource: 'PURCHASE_REGISTRATION_MODAL',
                                 userRegistration: {
                                     registeredAt: new Date().toISOString(),
                                     verificationToken: verificationToken,
                                 },
-                                formSource: 'PURCHASE_REGISTRATION_MODAL',
                             },
                         },
                     });
 
+                    // 🔄 為了保持API契約兼容，創建一個lead格式的響應對象
+                    const leadResponse = {
+                        id: purchaseIntentData.id,
+                        firstName: purchaseIntentData.firstName,
+                        lastName: purchaseIntentData.lastName,
+                        email: purchaseIntentData.email,
+                        phone: purchaseIntentData.phone,
+                        organization: purchaseIntentData.organization,
+                        message: purchaseIntentData.message,
+                        associationId: purchaseIntentData.associationId,
+                        status: 'NEW', // 對外仍使用Lead的狀態格式
+                        source: 'PURCHASE_INTENT',
+                        priority: 'HIGH',
+                        userId: purchaseIntentData.userId,
+                        createdAt: purchaseIntentData.createdAt,
+                        updatedAt: purchaseIntentData.updatedAt,
+                    };
+
                     return {
                         user,
                         profile: defaultProfile,
-                        lead,
+                        lead: leadResponse, // 🔄 返回兼容格式的lead對象
                         pricingPlan,
                     };
                 },

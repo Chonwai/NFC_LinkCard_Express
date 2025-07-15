@@ -39,6 +39,7 @@ model User {
   memberOf               AssociationMember[]
   purchaseOrders         PurchaseOrder[]     // 新增：用戶的購買訂單
   associationLeads       AssociationLead[]   // 🆕 新增：用戶相關的Lead記錄
+  purchaseIntentData     PurchaseIntentData[] // 🆕 新增：用戶的購買意向數據
 
   @@map("users")
 }
@@ -198,6 +199,7 @@ model Association {
   badges    ProfileBadge[] // 添加徽章關聯
   pricingPlans PricingPlan[]        // 新增：協會的定價方案
   purchaseOrders PurchaseOrder[]    // 新增：協會的購買訂單
+  purchaseIntentData PurchaseIntentData[] // 🆕 新增：協會的購買意向數據
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -283,6 +285,52 @@ model AssociationLead {
   @@index([userId]) // 🆕 用戶關聯索引
   @@index([createdAt]) // 🆕 創建時間索引，用於時間範圍查詢
   @@map("association_leads") // Map to snake_case plural
+}
+
+// 🆕 購買意向數據表 - 專門處理購買流程中的用戶數據收集
+model PurchaseIntentData {
+  id String @id @default(uuid())
+
+  // 關聯信息
+  associationId String      @map("association_id")
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  userId        String?     @map("user_id") // 可能為空（註冊前填寫）
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?   @map("purchase_order_id") // 付款成功後關聯
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+
+  // 用戶填寫的數據
+  firstName    String  @map("first_name")
+  lastName     String  @map("last_name")
+  email        String
+  phone        String?
+  organization String?
+  message      String?
+
+  // 狀態管理
+  status String @default("PENDING") // PENDING, CONVERTED, EXPIRED
+
+  // 自動化設置
+  autoCreateProfile Boolean @default(true) @map("auto_create_profile")
+  profileSettings   Json?   @map("profile_settings") // Profile創建偏好設置
+
+  // 購買上下文信息
+  purchaseContext Json? @map("purchase_context") // 存儲協會、方案等購買相關信息
+
+  // 時間戳
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  convertedAt DateTime? @map("converted_at") // 轉化完成時間
+  expiresAt   DateTime  @map("expires_at") // 數據過期時間（默認30天後）
+
+  @@index([associationId])
+  @@index([userId])
+  @@index([email])
+  @@index([status])
+  @@index([purchaseOrderId])
+  @@index([expiresAt]) // 用於清理過期數據
+  @@index([createdAt]) // 用於時間範圍查詢
+  @@map("purchase_intent_data")
 }
 
 model AssociationAnalytics {
@@ -423,6 +471,7 @@ model PurchaseOrder {
 
   // 🆕 Lead關聯
   leads                AssociationLead[]   // 一個訂單可能關聯多個Lead（主要是一個，但保持靈活性）
+  purchaseIntentData   PurchaseIntentData[] // 🆕 新增：訂單的購買意向數據關聯
 
   @@index([associationId])
   @@index([userId])

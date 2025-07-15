@@ -2,16 +2,21 @@ import { Service } from 'typedi';
 import prisma from '../../lib/prisma';
 import { generateSlug } from '../../utils/slugGenerator';
 import { ProfileBadgeService } from './ProfileBadgeService';
+import { PurchaseIntentDataService } from '../../auth/services/PurchaseIntentDataService'; // 🆕 新增
 import {
     LeadProfilePrefillDataDto,
     ProfilePrefillOptionsResponseDto,
     CreateAssociationProfileWithLeadDto,
     ProfileCreationResponseDto,
 } from '../dtos/lead-profile.dto';
+import { LinkType, LinkPlatform } from '@prisma/client';
 
 @Service()
 export class ProfilePrefillService {
-    constructor(private profileBadgeService: ProfileBadgeService) {}
+    constructor(
+        private profileBadgeService: ProfileBadgeService,
+        private purchaseIntentDataService: PurchaseIntentDataService, // 🆕 新增
+    ) {}
 
     /**
      * 🆕 獲取購買後的Profile創建選項和預填數據
@@ -51,14 +56,33 @@ export class ProfilePrefillService {
             throw new Error('訂單尚未完成支付');
         }
 
-        // 2. 查找關聯的Lead記錄
-        const lead = await prisma.associationLead.findFirst({
-            where: {
-                purchaseOrderId: orderId,
-                userId: userId,
+        // 2. 🆕 查找關聯的購買意向數據記錄（替代原有的Lead記錄）
+        let purchaseIntentData = await this.purchaseIntentDataService.findByOrderId(orderId);
+
+        // 🆕 如果當前訂單沒有關聯購買意向數據，查找該用戶在同一協會的最新記錄
+        if (!purchaseIntentData) {
+            purchaseIntentData = await this.purchaseIntentDataService.findByUserAndAssociation(
+                userId,
+                order.associationId,
+            );
+        }
+
+        // 🔄 為了保持API契約兼容，創建lead格式的數據對象
+        let lead = null;
+        if (purchaseIntentData) {
+            lead = {
+                id: purchaseIntentData.id,
+                firstName: purchaseIntentData.firstName,
+                lastName: purchaseIntentData.lastName,
+                email: purchaseIntentData.email,
+                phone: purchaseIntentData.phone,
+                organization: purchaseIntentData.organization,
+                message: purchaseIntentData.message,
                 source: 'PURCHASE_INTENT',
-            },
-        });
+                createdAt: purchaseIntentData.createdAt,
+                updatedAt: purchaseIntentData.updatedAt,
+            };
+        }
 
         // 3. 檢查用戶是否已有協會專屬Profile
         const existingAssociationProfile = await prisma.profile.findFirst({
@@ -134,47 +158,99 @@ export class ProfilePrefillService {
     }
 
     /**
-     * 🆕 基於Lead數據創建協會Profile
+     * 🆕 基於購買意向數據創建協會Profile
      * @param userId 用戶ID
-     * @param dto 創建Profile的DTO
+     * @param dto 創建Profile的數據
      * @returns 創建的Profile信息
      */
     async createProfileWithLeadData(
         userId: string,
         dto: CreateAssociationProfileWithLeadDto,
     ): Promise<ProfileCreationResponseDto> {
-        // 1. 驗證Lead和訂單
-        const lead = await prisma.associationLead.findUnique({
-            where: { id: dto.leadId },
-            include: {
-                purchaseOrder: {
-                    include: {
-                        association: {
-                            select: {
-                                id: true,
-                                name: true,
-                                slug: true,
-                                badgeImage: true,
-                            },
+        // 1. 🆕 查找購買意向數據記錄（替代原有的Lead記錄）
+        let purchaseIntentData;
+        let orderInfo;
+
+        if (dto.leadId) {
+            // 如果提供了leadId，實際上是購買意向數據ID
+            purchaseIntentData = await prisma.purchaseIntentData.findUnique({
+                where: { id: dto.leadId },
+                include: {
+                    association: {
+                        select: {
+                            id: true,
+                            name: true,
+                            slug: true,
+                            badgeImage: true,
                         },
                     },
                 },
-            },
-        });
+            });
 
-        if (!lead || lead.userId !== userId) {
-            throw new Error('Lead記錄不存在或無權限訪問');
+            if (!purchaseIntentData || purchaseIntentData.userId !== userId) {
+                throw new Error('購買意向數據不存在或無權限訪問');
+            }
+
+            // 查找關聯的訂單信息
+            if (purchaseIntentData.purchaseOrderId) {
+                orderInfo = await prisma.purchaseOrder.findUnique({
+                    where: { id: purchaseIntentData.purchaseOrderId },
+                });
+
+                if (orderInfo && orderInfo.id !== dto.orderId) {
+                    throw new Error('訂單信息不匹配');
+                }
+            }
+        } else {
+            // 如果沒有提供leadId，根據orderId和userId查找
+            purchaseIntentData = await this.purchaseIntentDataService.findByOrderId(dto.orderId);
+
+            if (!purchaseIntentData || purchaseIntentData.userId !== userId) {
+                throw new Error('購買意向數據不存在或無權限訪問');
+            }
+
+            // 獲取協會信息
+            purchaseIntentData = await prisma.purchaseIntentData.findUnique({
+                where: { id: purchaseIntentData.id },
+                include: {
+                    association: {
+                        select: {
+                            id: true,
+                            name: true,
+                            slug: true,
+                            badgeImage: true,
+                        },
+                    },
+                },
+            });
         }
 
-        if (!lead.purchaseOrder || lead.purchaseOrder.id !== dto.orderId) {
-            throw new Error('訂單信息不匹配');
-        }
+        // 🔄 為了保持API契約兼容，創建lead格式的數據對象
+        const lead = {
+            id: purchaseIntentData!.id,
+            firstName: purchaseIntentData!.firstName,
+            lastName: purchaseIntentData!.lastName,
+            email: purchaseIntentData!.email,
+            phone: purchaseIntentData!.phone,
+            organization: purchaseIntentData!.organization,
+            message: purchaseIntentData!.message,
+            userId: purchaseIntentData!.userId,
+            createdAt: purchaseIntentData!.createdAt,
+            updatedAt: purchaseIntentData!.updatedAt,
+            purchaseOrder: orderInfo
+                ? {
+                      id: orderInfo.id,
+                      association: purchaseIntentData!.association,
+                  }
+                : null,
+        };
 
-        if (lead.purchaseOrder.status !== 'PAID') {
+        // 2. 🆕 驗證訂單狀態（如果有關聯訂單）
+        if (orderInfo && orderInfo.status !== 'PAID') {
             throw new Error('訂單尚未完成支付');
         }
 
-        // 2. 檢查是否已存在同名Profile
+        // 3. 檢查是否已存在同名Profile
         const existingProfile = await prisma.profile.findFirst({
             where: {
                 user_id: userId,
@@ -186,12 +262,12 @@ export class ProfilePrefillService {
             throw new Error('已存在同名的Profile，請選擇其他名稱');
         }
 
-        // 3. 生成Profile slug
+        // 4. 生成Profile slug
         const slug = await generateSlug(dto.name);
 
-        // 4. 事務處理：創建Profile和徽章
+        // 5. 🆕 事務處理：創建Profile、徽章和自動Links
         const result = await prisma.$transaction(async (tx) => {
-            // 4.1 創建Profile
+            // 5.1 創建Profile
             const profile = await tx.profile.create({
                 data: {
                     name: dto.name,
@@ -202,23 +278,23 @@ export class ProfilePrefillService {
                     is_default: false,
                     meta: {
                         createdFrom: 'LEAD_PURCHASE',
-                        leadId: dto.leadId,
+                        leadId: lead.id, // 使用購買意向數據ID
                         orderId: dto.orderId,
-                        associationId: lead.purchaseOrder?.associationId,
+                        associationId: purchaseIntentData!.associationId,
                         createdAt: new Date().toISOString(),
                         ...dto.customization,
                     },
                 },
             });
 
-            // 4.2 創建協會徽章
+            // 5.2 創建協會徽章
             let badge = null;
-            if (lead.purchaseOrder?.association) {
+            if (purchaseIntentData!.association) {
                 try {
                     badge = await this.profileBadgeService.createProfileBadge(
                         {
                             profileId: profile.id,
-                            associationId: lead.purchaseOrder.association.id,
+                            associationId: purchaseIntentData!.association.id,
                             isVisible: dto.customization?.associationBadge ?? true,
                             displayMode: 'FULL',
                             displayOrder: 0,
@@ -231,10 +307,138 @@ export class ProfilePrefillService {
                 }
             }
 
-            return { profile, badge };
+            // 5.3 🆕 根據Lead數據自動創建Links
+            const createdLinks = [];
+            let displayOrder = 0;
+
+            // 🔍 調試：檢查Lead數據
+            console.log('🔍 準備創建Links，Lead數據:', {
+                leadId: lead.id,
+                email: lead.email,
+                phone: lead.phone,
+                organization: lead.organization,
+                firstName: lead.firstName,
+                lastName: lead.lastName,
+            });
+
+            try {
+                // 創建電子郵件Link
+                if (lead.email) {
+                    console.log('📧 創建電子郵件Link:', lead.email);
+                    const emailLink = await tx.link.create({
+                        data: {
+                            title: '電子郵件',
+                            url: `mailto:${lead.email}`,
+                            type: LinkType.CUSTOM,
+                            platform: LinkPlatform.EMAIL,
+                            is_active: true,
+                            display_order: displayOrder++,
+                            user_id: userId,
+                            profile_id: profile.id,
+                            meta: {
+                                createdFrom: 'LEAD_PREFILL',
+                                originalValue: lead.email,
+                            },
+                        },
+                    });
+                    createdLinks.push(emailLink);
+                }
+
+                // 創建電話Link
+                if (lead.phone) {
+                    console.log('📞 創建電話Link:', lead.phone);
+                    // 處理電話號碼格式
+                    let phoneUrl = lead.phone;
+                    if (!phoneUrl.startsWith('tel:')) {
+                        phoneUrl = `tel:${lead.phone}`;
+                    }
+
+                    const phoneLink = await tx.link.create({
+                        data: {
+                            title: '電話',
+                            url: phoneUrl,
+                            type: LinkType.CUSTOM,
+                            platform: LinkPlatform.PHONE,
+                            is_active: true,
+                            display_order: displayOrder++,
+                            user_id: userId,
+                            profile_id: profile.id,
+                            meta: {
+                                createdFrom: 'LEAD_PREFILL',
+                                originalValue: lead.phone,
+                            },
+                        },
+                    });
+                    createdLinks.push(phoneLink);
+                }
+
+                // 創建組織/公司網站Link（如果organization看起來像URL）
+                if (lead.organization) {
+                    console.log('🏢 檢查organization:', lead.organization);
+                    const isUrl = /^https?:\/\/.+/.test(lead.organization);
+                    console.log('🔗 是否為URL:', isUrl);
+                    if (isUrl) {
+                        console.log('🌐 創建公司網站Link:', lead.organization);
+                        const websiteLink = await tx.link.create({
+                            data: {
+                                title: '公司網站',
+                                url: lead.organization,
+                                type: LinkType.CUSTOM,
+                                platform: LinkPlatform.WEBSITE,
+                                is_active: true,
+                                display_order: displayOrder++,
+                                user_id: userId,
+                                profile_id: profile.id,
+                                meta: {
+                                    createdFrom: 'LEAD_PREFILL',
+                                    originalValue: lead.organization,
+                                },
+                            },
+                        });
+                        createdLinks.push(websiteLink);
+                    } else {
+                        console.log('🏭 創建公司佔位符Link:', lead.organization);
+                        // 如果不是URL，可能是公司名稱，創建為自定義Link
+                        const companyLink = await tx.link.create({
+                            data: {
+                                title: lead.organization,
+                                url: '#', // 佔位符URL
+                                type: LinkType.CUSTOM,
+                                platform: LinkPlatform.WEBSITE,
+                                is_active: false, // 默認不啟用，需要用戶手動設置URL
+                                display_order: displayOrder++,
+                                user_id: userId,
+                                profile_id: profile.id,
+                                meta: {
+                                    createdFrom: 'LEAD_PREFILL',
+                                    originalValue: lead.organization,
+                                    note: '需要設置正確的網站URL',
+                                },
+                            },
+                        });
+                        createdLinks.push(companyLink);
+                    }
+                }
+            } catch (linkError) {
+                console.error('創建Links失敗:', linkError);
+                // Links創建失敗不影響Profile創建
+            }
+
+            console.log('✅ Links創建完成，總共創建:', createdLinks.length, '個Links');
+            console.log(
+                '📋 創建的Links詳情:',
+                createdLinks.map((link) => ({
+                    title: link.title,
+                    url: link.url,
+                    platform: link.platform,
+                    isActive: link.is_active,
+                })),
+            );
+
+            return { profile, badge, links: createdLinks };
         });
 
-        // 5. 構建響應
+        // 6. 構建響應
         const profileUrl = `${process.env.FRONTEND_URL}/${result.profile.slug}`;
 
         return {
@@ -254,6 +458,20 @@ export class ProfilePrefillService {
                       displayMode: result.badge.displayMode,
                   }
                 : undefined,
+            links: result.links.map((link) => ({
+                id: link.id,
+                title: link.title,
+                url: link.url,
+                type: link.type,
+                platform: link.platform,
+                isActive: link.is_active,
+                displayOrder: link.display_order,
+                createdFrom: 'LEAD_PREFILL',
+            })),
+            summary: {
+                linksCreated: result.links.length,
+                linkTypes: result.links.map((link) => link.platform).filter(Boolean),
+            },
             nextStep: {
                 action: 'VIEW_PROFILE',
                 url: profileUrl,
@@ -310,24 +528,24 @@ export class ProfilePrefillService {
     }
 
     /**
-     * 🆕 獲取用戶在特定協會的Lead記錄
+     * 🆕 獲取用戶在特定協會的購買意向數據記錄（替代原有的Lead記錄）
      * @param userId 用戶ID
      * @param associationId 協會ID
-     * @returns Lead記錄列表
+     * @returns 購買意向數據記錄列表（格式化為Lead格式）
      */
     async getUserLeadsForAssociation(userId: string, associationId: string) {
-        return prisma.associationLead.findMany({
+        // 查詢購買意向數據
+        const purchaseIntentDataList = await prisma.purchaseIntentData.findMany({
             where: {
                 userId,
                 associationId,
             },
             include: {
-                purchaseOrder: {
+                association: {
                     select: {
                         id: true,
-                        orderNumber: true,
-                        status: true,
-                        paidAt: true,
+                        name: true,
+                        slug: true,
                     },
                 },
             },
@@ -335,5 +553,45 @@ export class ProfilePrefillService {
                 createdAt: 'desc',
             },
         });
+
+        // 🔄 為了保持API契約兼容，轉換為lead格式
+        const leadFormattedData = await Promise.all(
+            purchaseIntentDataList.map(async (intentData) => {
+                let purchaseOrder = null;
+
+                // 如果有關聯的訂單ID，查詢訂單信息
+                if (intentData.purchaseOrderId) {
+                    purchaseOrder = await prisma.purchaseOrder.findUnique({
+                        where: { id: intentData.purchaseOrderId },
+                        select: {
+                            id: true,
+                            orderNumber: true,
+                            status: true,
+                            paidAt: true,
+                        },
+                    });
+                }
+
+                return {
+                    id: intentData.id,
+                    firstName: intentData.firstName,
+                    lastName: intentData.lastName,
+                    email: intentData.email,
+                    phone: intentData.phone,
+                    organization: intentData.organization,
+                    message: intentData.message,
+                    userId: intentData.userId,
+                    associationId: intentData.associationId,
+                    status: 'NEW', // 對外使用Lead格式的狀態
+                    source: 'PURCHASE_INTENT',
+                    priority: 'HIGH',
+                    createdAt: intentData.createdAt,
+                    updatedAt: intentData.updatedAt,
+                    purchaseOrder,
+                };
+            }),
+        );
+
+        return leadFormattedData;
     }
 }

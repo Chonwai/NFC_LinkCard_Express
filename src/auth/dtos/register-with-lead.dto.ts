@@ -7,6 +7,8 @@ import {
     ValidateNested,
     IsUUID,
     Length,
+    IsObject,
+    IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PurchaseContextDto } from '../../association/dtos/lead.dto';
@@ -117,4 +119,49 @@ export class CreatePurchaseOrderWithLeadDto {
     @IsOptional()
     @IsString()
     cancelUrl?: string;
+}
+
+// 🆕 購買意向數據DTO - 內部使用
+export class CreatePurchaseIntentDataDto {
+    @IsString()
+    @IsNotEmpty()
+    firstName: string;
+
+    @IsString()
+    @IsNotEmpty()
+    lastName: string;
+
+    @IsEmail()
+    email: string;
+
+    @IsString()
+    @IsOptional()
+    phone?: string;
+
+    @IsString()
+    @IsOptional()
+    organization?: string;
+
+    @IsString()
+    @IsOptional()
+    message?: string;
+
+    @IsUUID()
+    associationId: string;
+
+    @IsUUID()
+    @IsOptional()
+    userId?: string;
+
+    @IsObject()
+    @IsOptional()
+    purchaseContext?: any;
+
+    @IsBoolean()
+    @IsOptional()
+    autoCreateProfile?: boolean;
+
+    @IsObject()
+    @IsOptional()
+    profileSettings?: any;
 }
