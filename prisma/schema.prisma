@@ -17,28 +17,28 @@ datasource db {
 }
 
 model User {
-  id                     String               @id @default(uuid())
-  username               String               @unique
-  email                  String               @unique
+  id                     String              @id @default(uuid())
+  username               String              @unique
+  email                  String              @unique
   password               String
-  display_name           String?              @map("display_name")
+  display_name           String?             @map("display_name")
   avatar                 String?
   bio                    String?
-  is_verified            Boolean              @default(false) @map("is_verified")
-  verified_at            DateTime?            @map("verified_at")
-  verification_token     String?              @map("verification_token")
-  reset_password_token   String?              @map("reset_password_token")
-  reset_password_expires DateTime?            @map("reset_password_expires")
-  meta                   Json?                @default("{}")
-  created_at             DateTime             @default(now()) @map("created_at")
-  updated_at             DateTime             @updatedAt @map("updated_at")
+  is_verified            Boolean             @default(false) @map("is_verified")
+  verified_at            DateTime?           @map("verified_at")
+  verification_token     String?             @map("verification_token")
+  reset_password_token   String?             @map("reset_password_token")
+  reset_password_expires DateTime?           @map("reset_password_expires")
+  meta                   Json?               @default("{}")
+  created_at             DateTime            @default(now()) @map("created_at")
+  updated_at             DateTime            @updatedAt @map("updated_at")
   links                  Link[]
   profiles               Profile[]
   analytics              Analytics[]
   associations           Association[] // 改為支持多協會
   memberOf               AssociationMember[]
-  purchaseOrders         PurchaseOrder[] // 新增：用戶的購買訂單
-  associationLeads       AssociationLead[] // 🆕 新增：用戶相關的Lead記錄
+  purchaseOrders         PurchaseOrder[]     // 新增：用戶的購買訂單
+  associationLeads       AssociationLead[]   // 🆕 新增：用戶相關的Lead記錄
   purchaseIntentData     PurchaseIntentData[] // 🆕 新增：用戶的購買意向數據
 
   @@map("users")
@@ -191,14 +191,14 @@ model Association {
   badgeImage    String? @map("badge_image") // 協會徽章圖片URL
 
   // 關聯
-  userId             String                 @map("user_id") // 移除 @unique 約束以支持多協會
-  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  members            AssociationMember[]
-  leads              AssociationLead[]
-  analytics          AssociationAnalytics[]
-  badges             ProfileBadge[] // 添加徽章關聯
-  pricingPlans       PricingPlan[] // 新增：協會的定價方案
-  purchaseOrders     PurchaseOrder[] // 新增：協會的購買訂單
+  userId    String                 @map("user_id") // 移除 @unique 約束以支持多協會
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members   AssociationMember[]
+  leads     AssociationLead[]
+  analytics AssociationAnalytics[]
+  badges    ProfileBadge[] // 添加徽章關聯
+  pricingPlans PricingPlan[]        // 新增：協會的定價方案
+  purchaseOrders PurchaseOrder[]    // 新增：協會的購買訂單
   purchaseIntentData PurchaseIntentData[] // 🆕 新增：協會的購買意向數據
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -259,15 +259,15 @@ model AssociationLead {
   status       String  @default("NEW") // NEW, CONTACTED, QUALIFIED, CONVERTED, REJECTED
 
   // 🆕 新增字段：來源追蹤和優先級管理
-  source   String? @default("WEBSITE_CONTACT") // "PURCHASE_INTENT" | "WEBSITE_CONTACT" | "EVENT_REGISTRATION" | "REFERRAL" | "OTHER"
-  priority String? @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
-
+  source           String?  @default("WEBSITE_CONTACT") // "PURCHASE_INTENT" | "WEBSITE_CONTACT" | "EVENT_REGISTRATION" | "REFERRAL" | "OTHER"
+  priority         String?  @default("MEDIUM") // "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  
   // 🆕 關聯字段
-  purchaseOrderId String? @map("purchase_order_id") // 關聯的購買訂單
-  userId          String? @map("user_id") // 關聯的用戶（如果已註冊）
-
+  purchaseOrderId  String?  @map("purchase_order_id") // 關聯的購買訂單
+  userId           String?  @map("user_id") // 關聯的用戶（如果已註冊）
+  
   // 🆕 擴展元數據 - 存儲購買上下文和其他靈活數據
-  metadata Json? // 存儲購買上下文、表單來源等信息
+  metadata         Json?    // 存儲購買上下文、表單來源等信息
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -292,12 +292,16 @@ model PurchaseIntentData {
   id String @id @default(uuid())
 
   // 關聯信息
-  associationId   String         @map("association_id")
-  association     Association    @relation(fields: [associationId], references: [id], onDelete: Cascade)
-  userId          String?        @map("user_id") // 可能為空（註冊前填寫）
-  user            User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  purchaseOrderId String?        @map("purchase_order_id") // 付款成功後關聯
-  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  associationId String      @map("association_id")
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  userId        String?     @map("user_id") // 可能為空（註冊前填寫）
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  purchaseOrderId String?   @map("purchase_order_id") // 付款成功後關聯
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  
+  // 🆕 添加定價方案關聯
+  pricingPlanId String?      @map("pricing_plan_id") // 關聯的定價方案
+  pricingPlan   PricingPlan? @relation(fields: [pricingPlanId], references: [id], onDelete: SetNull)
 
   // 用戶填寫的數據
   firstName    String  @map("first_name")
@@ -328,6 +332,7 @@ model PurchaseIntentData {
   @@index([email])
   @@index([status])
   @@index([purchaseOrderId])
+  @@index([pricingPlanId]) // 🆕 新增索引
   @@index([expiresAt]) // 用於清理過期數據
   @@index([createdAt]) // 用於時間範圍查詢
   @@map("purchase_intent_data")
@@ -401,34 +406,35 @@ model MembershipHistory {
 
 // MVP 付費功能：定價方案
 model PricingPlan {
-  id            String      @id @default(uuid())
-  associationId String      @map("association_id")
-  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
-
+  id                   String              @id @default(uuid())
+  associationId        String              @map("association_id")
+  association          Association         @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  
   // 方案基本信息
-  name           String // 方案名稱 (如 "BASIC", "PREMIUM", "EXECUTIVE")
-  displayName    String         @map("display_name") // 顯示名稱 (如 "基礎會員", "高級會員", "執行會員")
-  description    String? // 方案描述
-  membershipTier MembershipTier @map("membership_tier") // 對應的會員等級
-
+  name                 String              // 方案名稱 (如 "BASIC", "PREMIUM", "EXECUTIVE")
+  displayName          String              @map("display_name") // 顯示名稱 (如 "基礎會員", "高級會員", "執行會員")
+  description          String?             // 方案描述
+  membershipTier       MembershipTier      @map("membership_tier") // 對應的會員等級
+  
   // 價格設定
-  price        Decimal @db.Decimal(10, 2) // 價格
-  currency     String  @default("HKD") // 貨幣
-  billingCycle String  @default("YEARLY") // 計費週期: MONTHLY, YEARLY
-
+  price                Decimal             @db.Decimal(10, 2) // 價格
+  currency             String              @default("HKD") // 貨幣
+  billingCycle         String              @default("YEARLY") // 計費週期: MONTHLY, YEARLY
+  
   // Stripe 集成
-  stripeProductId String? @map("stripe_product_id") // Stripe Product ID
-  stripePriceId   String? @map("stripe_price_id") // Stripe Price ID
-
+  stripeProductId      String?             @map("stripe_product_id") // Stripe Product ID
+  stripePriceId        String?             @map("stripe_price_id") // Stripe Price ID
+  
   // 狀態
-  isActive Boolean @default(true) @map("is_active")
-
+  isActive             Boolean             @default(true) @map("is_active")
+  
   // 系統字段
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  
   // 關聯
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders       PurchaseOrder[]
+  purchaseIntentData   PurchaseIntentData[] // 🆕 新增反向關聯
 
   @@unique([associationId, membershipTier])
   @@index([associationId])
@@ -438,40 +444,40 @@ model PricingPlan {
 
 // MVP 付費功能：購買訂單
 model PurchaseOrder {
-  id String @id @default(uuid())
-
+  id                   String              @id @default(uuid())
+  
   // 關聯
-  associationId String      @map("association_id")
-  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
-  userId        String      @map("user_id")
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  pricingPlanId String      @map("pricing_plan_id")
-  pricingPlan   PricingPlan @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
-
+  associationId        String              @map("association_id")
+  association          Association         @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  userId               String              @map("user_id")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pricingPlanId        String              @map("pricing_plan_id")
+  pricingPlan          PricingPlan         @relation(fields: [pricingPlanId], references: [id], onDelete: Restrict)
+  
   // 🆕 Lead關聯 - 支持購買前Lead收集
-  leadId String? @map("lead_id") // 關聯的Lead（如果通過Lead流程購買）
-
+  leadId               String?             @map("lead_id") // 關聯的Lead（如果通過Lead流程購買）
+  
   // 訂單信息
-  orderNumber String  @unique @map("order_number") // 訂單號
-  amount      Decimal @db.Decimal(10, 2) // 金額
-  currency    String  @default("HKD") // 貨幣
-  status      String  @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
-
+  orderNumber          String              @unique @map("order_number") // 訂單號
+  amount               Decimal             @db.Decimal(10, 2) // 金額
+  currency             String              @default("HKD") // 貨幣
+  status               String              @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  
   // Stripe 集成數據 (使用 JSON 存儲以保持靈活性)
-  stripeData Json? @map("stripe_data") // 存儲 Stripe 相關數據
-
+  stripeData           Json?               @map("stripe_data") // 存儲 Stripe 相關數據
+  
   // 會員權益生效期間
-  membershipStartDate DateTime? @map("membership_start_date")
-  membershipEndDate   DateTime? @map("membership_end_date")
-
+  membershipStartDate  DateTime?           @map("membership_start_date")
+  membershipEndDate    DateTime?           @map("membership_end_date")
+  
   // 系統字段
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  paidAt    DateTime? @map("paid_at") // 支付完成時間
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+  paidAt               DateTime?           @map("paid_at") // 支付完成時間
 
   // 🆕 Lead關聯
-  leads              AssociationLead[] // 一個訂單可能關聯多個Lead（主要是一個，但保持靈活性）
-  purchaseIntentData PurchaseIntentData[] // 🆕 新增：訂單的購買意向數據關聯
+  leads                AssociationLead[]   // 一個訂單可能關聯多個Lead（主要是一個，但保持靈活性）
+  purchaseIntentData   PurchaseIntentData[] // 🆕 新增：訂單的購買意向數據關聯
 
   @@index([associationId])
   @@index([userId])

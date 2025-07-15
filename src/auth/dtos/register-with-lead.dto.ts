@@ -151,6 +151,10 @@ export class CreatePurchaseIntentDataDto {
 
     @IsUUID()
     @IsOptional()
+    pricingPlanId?: string; // 🆕 添加定價方案ID
+
+    @IsUUID()
+    @IsOptional()
     userId?: string;
 
     @IsObject()

@@ -45,6 +45,13 @@ export class ProfilePrefillService {
                         membershipTier: true,
                     },
                 },
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        username: true,
+                    },
+                },
             },
         });
 
@@ -82,6 +89,40 @@ export class ProfilePrefillService {
                 createdAt: purchaseIntentData.createdAt,
                 updatedAt: purchaseIntentData.updatedAt,
             };
+        } else {
+            // 🆕 備用方案：如果沒有 PurchaseIntentData，查找 AssociationLead
+            console.log('🔍 PurchaseIntentData not found, trying AssociationLead fallback...');
+            const associationLead = await prisma.associationLead.findFirst({
+                where: {
+                    associationId: order.associationId,
+                    email: order.user.email, // 使用訂單中的用戶郵箱匹配
+                },
+                orderBy: {
+                    createdAt: 'desc', // 獲取最新的記錄
+                },
+            });
+
+            if (associationLead) {
+                console.log('✅ Found AssociationLead fallback data:', {
+                    id: associationLead.id,
+                    email: associationLead.email,
+                    firstName: associationLead.firstName,
+                });
+                lead = {
+                    id: associationLead.id,
+                    firstName: associationLead.firstName || '',
+                    lastName: associationLead.lastName || '',
+                    email: associationLead.email || '',
+                    phone: associationLead.phone || '',
+                    organization: associationLead.organization || '',
+                    message: associationLead.message || '',
+                    source: 'ASSOCIATION_LEAD',
+                    createdAt: associationLead.createdAt,
+                    updatedAt: associationLead.updatedAt,
+                };
+            } else {
+                console.log('❌ No AssociationLead found either');
+            }
         }
 
         // 3. 檢查用戶是否已有協會專屬Profile
@@ -206,23 +247,95 @@ export class ProfilePrefillService {
             purchaseIntentData = await this.purchaseIntentDataService.findByOrderId(dto.orderId);
 
             if (!purchaseIntentData || purchaseIntentData.userId !== userId) {
-                throw new Error('購買意向數據不存在或無權限訪問');
-            }
+                // 🆕 備用方案：如果沒有 PurchaseIntentData，嘗試通過 orderId 查找訂單，然後用 AssociationLead
+                console.log(
+                    '🔍 PurchaseIntentData not found, trying AssociationLead fallback for orderId:',
+                    dto.orderId,
+                );
 
-            // 獲取協會信息
-            purchaseIntentData = await prisma.purchaseIntentData.findUnique({
-                where: { id: purchaseIntentData.id },
-                include: {
-                    association: {
-                        select: {
-                            id: true,
-                            name: true,
-                            slug: true,
-                            badgeImage: true,
+                const orderForLead = await prisma.purchaseOrder.findUnique({
+                    where: { id: dto.orderId },
+                    include: {
+                        association: {
+                            select: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                                logo: true,
+                            },
+                        },
+                        user: {
+                            select: {
+                                id: true,
+                                email: true,
+                            },
                         },
                     },
-                },
-            });
+                });
+
+                if (!orderForLead || orderForLead.userId !== userId) {
+                    throw new Error('訂單不存在或無權限訪問');
+                }
+
+                // 查找對應的 AssociationLead
+                const associationLead = await prisma.associationLead.findFirst({
+                    where: {
+                        associationId: orderForLead.associationId,
+                        email: orderForLead.user.email,
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                });
+
+                if (!associationLead) {
+                    throw new Error('找不到相關的Lead數據或購買意向數據');
+                }
+
+                console.log('✅ Found AssociationLead fallback for profile creation:', {
+                    id: associationLead.id,
+                    email: associationLead.email,
+                });
+
+                // 🔄 將 AssociationLead 轉換為 purchaseIntentData 格式
+                purchaseIntentData = {
+                    id: associationLead.id,
+                    userId: userId,
+                    associationId: associationLead.associationId,
+                    firstName: associationLead.firstName || '',
+                    lastName: associationLead.lastName || '',
+                    email: associationLead.email || '',
+                    phone: associationLead.phone || '',
+                    organization: associationLead.organization || '',
+                    message: associationLead.message || '',
+                    purchaseOrderId: dto.orderId,
+                    createdAt: associationLead.createdAt,
+                    updatedAt: associationLead.updatedAt,
+                    association: {
+                        id: orderForLead.association.id,
+                        name: orderForLead.association.name,
+                        slug: orderForLead.association.slug,
+                        badgeImage: orderForLead.association.logo, // 使用 logo 作為 badgeImage
+                    },
+                } as any; // 使用 type assertion 來匹配預期的類型
+
+                orderInfo = orderForLead;
+            } else {
+                // 獲取協會信息
+                purchaseIntentData = await prisma.purchaseIntentData.findUnique({
+                    where: { id: purchaseIntentData.id },
+                    include: {
+                        association: {
+                            select: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                                badgeImage: true,
+                            },
+                        },
+                    },
+                });
+            }
         }
 
         // 🔄 為了保持API契約兼容，創建lead格式的數據對象

@@ -126,6 +126,7 @@ export class RegisterWithLeadService {
                             message: dto.lead.message,
                             associationId: dto.purchaseContext.associationId,
                             userId: user.id,
+                            pricingPlanId: dto.purchaseContext.pricingPlanId, // 🆕 直接設置 pricingPlanId 字段
                             status: 'PENDING',
                             expiresAt, // 🆕 添加過期時間
                             autoCreateProfile: true,

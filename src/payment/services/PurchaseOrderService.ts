@@ -86,6 +86,81 @@ export class PurchaseOrderService {
         // 生成訂單號
         const orderNumber = `ORDER-${nanoid(10)}`;
 
+        // 🆕 智能查找 PurchaseIntentData 記錄
+        // 優先使用 email 作為關聯鍵，因為 email 在整個流程中是一致的
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true },
+        });
+
+        if (!user?.email) {
+            throw new Error('用戶信息不完整，無法創建訂單');
+        }
+
+        console.log('🔍 開始查找 PurchaseIntentData:', {
+            pricingPlanId: data.pricingPlanId,
+            associationId: pricingPlan.associationId,
+            userEmail: user.email,
+            userId,
+        });
+
+        // 策略1: 優先通過 email + pricingPlanId + associationId 查找（最可靠）
+        let purchaseIntentData = await this.prisma.purchaseIntentData.findFirst({
+            where: {
+                email: user.email,
+                pricingPlanId: data.pricingPlanId,
+                associationId: pricingPlan.associationId,
+                status: 'PENDING',
+                expiresAt: {
+                    gt: new Date(), // 未過期
+                },
+            },
+            orderBy: {
+                createdAt: 'desc', // 最新的記錄優先
+            },
+        });
+
+        let searchMethod = 'email_pricingPlan_association';
+
+        // 策略2: 如果沒找到，嘗試通過 userId + pricingPlanId 查找（已關聯用戶）
+        if (!purchaseIntentData) {
+            purchaseIntentData = await this.prisma.purchaseIntentData.findFirst({
+                where: {
+                    userId,
+                    pricingPlanId: data.pricingPlanId,
+                    status: 'PENDING',
+                    expiresAt: {
+                        gt: new Date(),
+                    },
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                },
+            });
+            searchMethod = 'userId_pricingPlan';
+        }
+
+        // 🆕 如果找到記錄但 userId 為空，關聯到當前用戶
+        if (purchaseIntentData && !purchaseIntentData.userId) {
+            purchaseIntentData = await this.prisma.purchaseIntentData.update({
+                where: { id: purchaseIntentData.id },
+                data: { userId },
+            });
+            console.log('✅ 已將 PurchaseIntentData 關聯到用戶:', {
+                intentDataId: purchaseIntentData.id,
+                userId,
+                email: user.email,
+            });
+        }
+
+        console.log('🔍 查找 PurchaseIntentData 結果:', {
+            found: !!purchaseIntentData,
+            intentDataId: purchaseIntentData?.id,
+            searchMethod,
+            userEmail: user.email,
+            pricingPlanId: data.pricingPlanId,
+        });
+
         // 創建購買訂單
         const purchaseOrder = await this.prisma.purchaseOrder.create({
             data: {
@@ -98,6 +173,22 @@ export class PurchaseOrderService {
                 status: 'PENDING',
             },
         });
+
+        // 🆕 如果找到對應的 PurchaseIntentData，建立關聯
+        if (purchaseIntentData) {
+            await this.prisma.purchaseIntentData.update({
+                where: { id: purchaseIntentData.id },
+                data: {
+                    purchaseOrderId: purchaseOrder.id,
+                },
+            });
+            console.log('✅ 已關聯 PurchaseIntentData 到訂單:', {
+                intentDataId: purchaseIntentData.id,
+                orderId: purchaseOrder.id,
+            });
+        } else {
+            console.log('⚠️ 未找到對應的 PurchaseIntentData，可能是直接購買流程');
+        }
 
         // 創建 Stripe Checkout Session
         const session = await this.stripe.checkout.sessions.create({
@@ -843,8 +934,8 @@ export class PurchaseOrderService {
     }
 
     /**
-     * 🆕 更新關聯Lead狀態為已轉換
-     * 在支付成功後調用，將購買意向Lead標記為已轉換
+     * 🆕 更新關聯Lead和PurchaseIntentData狀態為已轉換
+     * 在支付成功後調用，將購買意向數據標記為已轉換
      */
     private async updateAssociatedLeadStatus(
         purchaseOrderId: string,
@@ -852,82 +943,140 @@ export class PurchaseOrderService {
         associationId: string,
     ) {
         try {
-            // 查找與此訂單和用戶相關的Lead記錄
-            const associatedLead = await this.prisma.associationLead.findFirst({
-                where: {
-                    purchaseOrderId: purchaseOrderId,
-                    userId: userId,
-                    associationId: associationId,
-                    source: 'PURCHASE_INTENT', // 只更新購買意向Lead
-                },
+            console.log('🔍 開始更新購買意向數據狀態:', {
+                purchaseOrderId,
+                userId,
+                associationId,
             });
 
-            if (associatedLead) {
-                // 更新Lead狀態為已轉換
-                await this.prisma.associationLead.update({
-                    where: { id: associatedLead.id },
-                    data: {
-                        status: 'CONVERTED',
-                        metadata: {
-                            ...((associatedLead.metadata as any) || {}),
-                            conversion: {
-                                convertedAt: new Date().toISOString(),
-                                conversionType: 'PAID_MEMBERSHIP',
-                                purchaseOrderId: purchaseOrderId,
-                                amount: null, // 將在後續查詢中填充
-                            },
-                        },
-                    },
-                });
-
-                console.log(
-                    `✅ Lead已轉換：Lead ID ${associatedLead.id} -> 訂單 ${purchaseOrderId}`,
-                );
-            } else {
-                // 查找任何與用戶和協會相關的購買意向Lead（作為備用）
-                const fallbackLead = await this.prisma.associationLead.findFirst({
+            // 🆕 首先處理 PurchaseIntentData
+            let purchaseIntentUpdated = false;
+            try {
+                // 查找與用戶和協會相關的 PurchaseIntentData
+                const purchaseIntentData = await this.prisma.purchaseIntentData.findFirst({
                     where: {
                         userId: userId,
                         associationId: associationId,
-                        source: 'PURCHASE_INTENT',
-                        status: {
-                            in: ['NEW', 'CONTACTED', 'QUALIFIED'], // 未轉換的狀態
-                        },
+                        status: 'PENDING',
                     },
                     orderBy: {
-                        createdAt: 'desc', // 最新的Lead
+                        createdAt: 'desc', // 獲取最新的記錄
                     },
                 });
 
-                if (fallbackLead) {
+                if (purchaseIntentData) {
+                    // 更新 PurchaseIntentData：關聯訂單和更新狀態
+                    await this.prisma.purchaseIntentData.update({
+                        where: { id: purchaseIntentData.id },
+                        data: {
+                            purchaseOrderId: purchaseOrderId,
+                            status: 'CONVERTED',
+                            convertedAt: new Date(),
+                        },
+                    });
+
+                    console.log(
+                        `✅ PurchaseIntentData已轉換：ID ${purchaseIntentData.id} -> 訂單 ${purchaseOrderId}`,
+                    );
+                    purchaseIntentUpdated = true;
+                } else {
+                    console.log('ℹ️ 未找到相關的 PurchaseIntentData');
+                }
+            } catch (error) {
+                console.error('❌ 更新 PurchaseIntentData 失敗:', error);
+            }
+
+            // 🔄 然後處理 AssociationLead（保持原有邏輯）
+            let associationLeadUpdated = false;
+            try {
+                // 查找與此訂單和用戶相關的Lead記錄
+                const associatedLead = await this.prisma.associationLead.findFirst({
+                    where: {
+                        purchaseOrderId: purchaseOrderId,
+                        userId: userId,
+                        associationId: associationId,
+                        source: 'PURCHASE_INTENT', // 只更新購買意向Lead
+                    },
+                });
+
+                if (associatedLead) {
+                    // 更新Lead狀態為已轉換
                     await this.prisma.associationLead.update({
-                        where: { id: fallbackLead.id },
+                        where: { id: associatedLead.id },
                         data: {
                             status: 'CONVERTED',
-                            purchaseOrderId: purchaseOrderId,
                             metadata: {
-                                ...((fallbackLead.metadata as any) || {}),
+                                ...((associatedLead.metadata as any) || {}),
                                 conversion: {
                                     convertedAt: new Date().toISOString(),
                                     conversionType: 'PAID_MEMBERSHIP',
                                     purchaseOrderId: purchaseOrderId,
-                                    note: 'Converted via fallback matching (user + association)',
+                                    amount: null, // 將在後續查詢中填充
                                 },
                             },
                         },
                     });
 
                     console.log(
-                        `✅ Lead已轉換（備用匹配）：Lead ID ${fallbackLead.id} -> 訂單 ${purchaseOrderId}`,
+                        `✅ Lead已轉換：Lead ID ${associatedLead.id} -> 訂單 ${purchaseOrderId}`,
                     );
+                    associationLeadUpdated = true;
                 } else {
-                    console.log(
-                        `ℹ️ 未找到相關的購買意向Lead：用戶 ${userId}，協會 ${associationId}，訂單 ${purchaseOrderId}`,
-                    );
+                    // 查找任何與用戶和協會相關的購買意向Lead（作為備用）
+                    const fallbackLead = await this.prisma.associationLead.findFirst({
+                        where: {
+                            userId: userId,
+                            associationId: associationId,
+                            source: 'PURCHASE_INTENT',
+                            status: {
+                                in: ['NEW', 'CONTACTED', 'QUALIFIED'], // 未轉換的狀態
+                            },
+                        },
+                        orderBy: {
+                            createdAt: 'desc', // 最新的Lead
+                        },
+                    });
+
+                    if (fallbackLead) {
+                        await this.prisma.associationLead.update({
+                            where: { id: fallbackLead.id },
+                            data: {
+                                status: 'CONVERTED',
+                                purchaseOrderId: purchaseOrderId,
+                                metadata: {
+                                    ...((fallbackLead.metadata as any) || {}),
+                                    conversion: {
+                                        convertedAt: new Date().toISOString(),
+                                        conversionType: 'PAID_MEMBERSHIP',
+                                        purchaseOrderId: purchaseOrderId,
+                                        note: 'Converted via fallback matching (user + association)',
+                                    },
+                                },
+                            },
+                        });
+
+                        console.log(
+                            `✅ Lead已轉換（備用匹配）：Lead ID ${fallbackLead.id} -> 訂單 ${purchaseOrderId}`,
+                        );
+                        associationLeadUpdated = true;
+                    } else {
+                        console.log(
+                            `ℹ️ 未找到相關的購買意向Lead：用戶 ${userId}，協會 ${associationId}，訂單 ${purchaseOrderId}`,
+                        );
+                    }
                 }
+            } catch (error) {
+                console.error('❌ 更新 AssociationLead 狀態失敗:', error);
             }
+
+            // 🎯 結果總結
+            console.log('📊 購買意向數據更新結果:', {
+                purchaseOrderId,
+                purchaseIntentDataUpdated: purchaseIntentUpdated,
+                associationLeadUpdated: associationLeadUpdated,
+            });
         } catch (error) {
-            console.error('❌ 更新Lead狀態失敗:', error);
+            console.error('❌ 更新購買意向數據狀態失敗:', error);
             // Lead狀態更新失敗不應該影響主要支付流程
         }
     }
