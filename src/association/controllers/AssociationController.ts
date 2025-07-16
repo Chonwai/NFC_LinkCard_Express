@@ -789,7 +789,7 @@ export class AssociationController {
 
             console.log('membershipDetails: ', membershipDetails);
 
-            if (membershipDetails) {
+            if (membershipDetails && membershipDetails.membershipStatus !== 'TERMINATED') {
                 // 用戶是會員，返回詳細資訊
                 return ApiResponse.success(res, {
                     isMember: true,
