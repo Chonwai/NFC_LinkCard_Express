@@ -57,9 +57,15 @@ router.put('/associations/:id', authMiddleware, associationController.updateAsso
 router.patch('/associations/:id', authMiddleware, associationController.updateAssociation);
 router.delete('/associations/:id', authMiddleware, associationController.deleteAssociation);
 
-// 協會封面圖片上傳
+// 🔧 HOTFIX: 恢復原有的上傳路由 (兩個分開的端點)
 router.post(
-    '/associations/:id/banner',
+    '/associations/:id/upload-logo',
+    authMiddleware,
+    upload.single('logo') as any,
+    associationController.uploadLogo,
+);
+router.post(
+    '/associations/:id/upload-banner',
     authMiddleware,
     upload.single('banner') as any,
     associationController.uploadBanner,
@@ -79,6 +85,9 @@ router.get('/associations/:id/members', memberController.getMembers);
 router.post('/associations/:id/members', authMiddleware, memberController.addMember);
 router.put('/associations/:id/members/:memberId', authMiddleware, memberController.updateMember);
 router.delete('/associations/:id/members/:memberId', authMiddleware, memberController.removeMember);
+
+// 添加獲取已刪除會員列表路由
+router.get('/associations/:id/deleted-members', authMiddleware, memberController.getDeletedMembers);
 
 // 會員狀態管理路由
 router.patch(
@@ -118,15 +127,19 @@ router.patch(
     authMiddleware,
     memberController.updateMemberRole,
 );
+// 🔧 HOTFIX: 修復visibility路由路徑 (恢復正確的路徑結構)
 router.patch(
-    '/associations/members/:id/visibility',
+    '/associations/:id/members/:memberId/visibility',
     authMiddleware,
     memberController.updateDirectoryVisibility,
 );
 
 // 會員查詢功能
-router.get('/associations/:id/deleted-members', authMiddleware, memberController.getDeletedMembers);
-router.get('/associations/:id/members/by-status', memberController.getMembersByStatus);
+router.get(
+    '/associations/:id/members/by-status',
+    authMiddleware, // 如果需要權限控制
+    memberController.getMembersByStatus,
+);
 router.get(
     '/associations/members/:memberId/history',
     authMiddleware,
@@ -155,7 +168,23 @@ router.post(
     memberInvitationController.batchInviteMembers,
 );
 
-// 用戶協會關係 (從routes.ts遷移)
+// 🆕 批量邀請 - 兼容路径（向后兼容）
+router.post(
+    '/associations/:id/batch-invite',
+    authMiddleware,
+    upload.single('csvFile') as any,
+    memberInvitationController.batchInviteMembers,
+);
+
+// 上傳CSV處理
+router.post(
+    '/associations/:id/process-csv',
+    authMiddleware,
+    upload.single('csv') as any,
+    memberInvitationController.processCsvUpload,
+);
+
+// 用戶協會關係
 router.get('/my-associations', authMiddleware, memberController.getUserAssociations);
 router.get('/managed-associations', authMiddleware, memberController.getManagedAssociations);
 
@@ -166,11 +195,22 @@ router.get(
     associationController.checkMembership,
 );
 
-// 潛在客戶路由 (CRM功能 - 純Lead管理)
-router.post('/associations/:id/leads', leadController.createLead);
+// 邀請處理路由
+router.get('/invitations/:token', memberInvitationController.getInvitationByToken);
+// 🔧 HOTFIX: 保持舊的邀請激活端點以確保向後兼容
+router.post('/invitations/activate', memberInvitationController.activateInvitedUser);
+router.post('/invitations/activate-user', memberInvitationController.activateInvitedUser);
+router.get('/invitations', authMiddleware, memberInvitationController.getUserInvitations);
+router.post('/invitations/respond', authMiddleware, memberInvitationController.respondToInvitation);
+router.post('/invitations/:token/resend', memberInvitationController.resendInvitation);
+
+// 🔧 HOTFIX: 恢復完整的Lead路由 (包括缺失的delete端點)
+router.post('/associations/:id/leads', leadController.createLead); // 公開 API
 router.get('/associations/:id/leads', authMiddleware, leadController.getLeads);
 router.get('/associations/:id/leads/:leadId', authMiddleware, leadController.getLeadById);
 router.put('/associations/:id/leads/:leadId', authMiddleware, leadController.updateLead);
+router.delete('/associations/:id/leads/:leadId', authMiddleware, leadController.deleteLead); // 🔧 恢復缺失的delete端點
+router.patch('/associations/leads/:id/status', authMiddleware, leadController.updateLead);
 
 // 🆕 購買意向數據路由 (購買流程專用)
 router.post(
@@ -206,11 +246,16 @@ router.get(
 );
 
 // 分析統計路由
+router.post('/analytics/event', analyticsController.trackEvent);
+router.get('/associations/:id/analytics', authMiddleware, analyticsController.getAnalytics);
+router.get('/associations/:id/analytics/visits', authMiddleware, analyticsController.getVisitStats);
 router.get(
     '/associations/:id/analytics/lead-stats',
     authMiddleware,
     analyticsController.getLeadStats,
 );
+router.get('/associations/:id/analytics/stats', authMiddleware, analyticsController.getStats);
+router.get('/associations/:id/analytics/public-stats', analyticsController.getPublicStats);
 
 // 會員關聯路由
 router.post(
@@ -224,20 +269,14 @@ router.put(
     affiliationController.updateAffiliation,
 );
 router.get('/user/affiliations', authMiddleware, affiliationController.getUserAffiliations);
-
-// 會員邀請響應路由
-router.post('/invitations/respond', memberInvitationController.respondToInvitation);
-router.post('/invitations/activate-user', memberInvitationController.activateInvitedUser);
-
-// 新會員邀請路由
-router.get('/invitations/:token', memberInvitationController.getInvitationByToken);
-router.post('/invitations/:token/resend', memberInvitationController.resendInvitation);
+router.get('/users/:userId/affiliations/public', affiliationController.getPublicUserAffiliations);
 
 // 個人檔案徽章路由
 router.get('/profiles/:id/badges', profileBadgeController.getProfileBadges);
 router.post('/profiles/:id/badges', authMiddleware, profileBadgeController.createProfileBadge);
-
+router.put('/profiles/badges/:id', authMiddleware, profileBadgeController.updateProfileBadge);
 router.put('/profiles/:id/badges', authMiddleware, profileBadgeController.batchUpdateProfileBadges);
+router.delete('/profiles/badges/:id', authMiddleware, profileBadgeController.deleteProfileBadge);
 
 // 新增: 創建協會專屬 Profile 路由
 router.post(

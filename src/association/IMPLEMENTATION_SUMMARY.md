@@ -8,6 +8,7 @@
    - 接收會員列表，處理並發送邀請
    - 支持邀請現有用戶和創建臨時帳戶
    - 返回詳細處理結果（成功、失敗、已存在等）
+   - **兼容路径**：`POST /associations/:id/members/batch-invite`（推荐使用）
 
 2. **CSV 文件處理 API** (`POST /associations/:id/process-csv`)
    - 解析上傳的CSV文件
