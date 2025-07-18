@@ -25,6 +25,8 @@ app.use(
             'http://nfc-link-card-next-js.vercel.app',
             'https://link-card.xyz',
             'http://link-card.xyz',
+            'https://www.link-card.xyz',
+            'http://www.link-card.xyz',
             'https://linkcard.xyz',
             'http://linkcard.xyz',
             'https://nfc-link-card-express.vercel.app',
